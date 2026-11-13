@@ -36,3 +36,67 @@ def resample_location(location: pd.DataFrame, grid: pd.DatetimeIndex) -> pd.Data
         "x": np.interp(g[inside], t, location["x"]).round().astype("float32"),
         "y": np.interp(g[inside], t, location["y"]).round().astype("float32"),
     })
+
+
+BOX = 20000  # width of the normalised coordinate box; fits int16 with headroom
+
+
+def clip_to_window(df: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
+    """Rows between start and end with a "t" column (seconds since start).
+
+    Every numeric column is linearly interpolated at exactly start and end, so
+    a lap begins at t = 0 and finishes at t = lap time whatever the sampling.
+    Needs at least one sample on each side of the window (fetch with padding).
+    """
+    t = seconds_since(df["date"], start)
+    duration = (end - start) / pd.Timedelta(seconds=1)
+    inside = (t > 0) & (t < duration)
+    new_t = np.concatenate([[0.0], t[inside], [duration]])
+    columns = [c for c in df.columns if c != "date"]
+    clipped = {c: np.interp(new_t, t, df[c].to_numpy(dtype="float64")) for c in columns}
+    return pd.DataFrame({"t": new_t, **clipped})
+
+
+def lap_fraction(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Share of the lap distance covered at each sample: 0 at the first, 1 at the last."""
+    steps = np.hypot(np.diff(x, prepend=x[0]), np.diff(y, prepend=y[0]))
+    distance = np.cumsum(steps)
+    return distance / distance[-1]
+
+
+def track_outline(lap_location: pd.DataFrame, points: int = 400) -> pd.DataFrame:
+    """Track centre line from one lap: `points` rows (fraction, x, y) evenly spaced by distance."""
+    x = lap_location["x"].to_numpy(dtype="float64")
+    y = lap_location["y"].to_numpy(dtype="float64")
+    own = lap_fraction(x, y)
+    fraction = np.linspace(0, 1, points)
+    return pd.DataFrame({
+        "fraction": fraction, "x": np.interp(fraction, own, x), "y": np.interp(fraction, own, y),
+    })
+
+
+def _oriented(x: np.ndarray, y: np.ndarray, rotate: bool) -> tuple[np.ndarray, np.ndarray]:
+    """Screen orientation: optional quarter turn, then y pointing down."""
+    x, y = np.asarray(x, dtype="float64"), np.asarray(y, dtype="float64")
+    return (y, x) if rotate else (x, -y)
+
+
+def fit_to_box(x: np.ndarray, y: np.ndarray, box: int = BOX) -> dict:
+    """Transform that fits a track into a box `box` wide, keeping the aspect ratio.
+
+    A track that is taller than wide is turned by 90 degrees so it uses a
+    landscape canvas better. Returns the parameters used by to_box.
+    """
+    rotate = bool(np.ptp(y) > np.ptp(x))
+    u, v = _oriented(x, y, rotate)
+    scale = box / np.ptp(u)
+    return {
+        "rotate": rotate, "u_min": float(u.min()), "v_min": float(v.min()), "scale": float(scale),
+        "width": box, "height": int(round(np.ptp(v) * scale)),
+    }
+
+
+def to_box(x: np.ndarray, y: np.ndarray, fit: dict) -> tuple[np.ndarray, np.ndarray]:
+    """Apply a fit_to_box transform; NaN stays NaN."""
+    u, v = _oriented(x, y, fit["rotate"])
+    return (u - fit["u_min"]) * fit["scale"], (v - fit["v_min"]) * fit["scale"]

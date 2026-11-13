@@ -1,3 +1,11 @@
 [theme]
-base = "dark"
+base = "light"
 primaryColor = "#E10600"
+backgroundColor = "#FBFBFD"
+secondaryBackgroundColor = "#F2F2F5"
+textColor = "#1D1D1F"
+font = "Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
+baseRadius = "large"
+
+[client]
+toolbarMode = "minimal"

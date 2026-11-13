@@ -288,6 +288,11 @@ def _demo_table(session_key: int, table: str) -> pd.DataFrame | None:
     return pd.read_parquet(path) if path and path.exists() else None
 
 
+def demo_sessions() -> dict[str, int]:
+    """Session keys of the bundled demo weekend by session name (Race, Qualifying)."""
+    return {s["session_name"]: s["session_key"] for s in _demo_index()["sessions"]}
+
+
 def is_demo_session(session_key: int) -> bool:
     """True if the session is bundled as offline demo data."""
     return _demo_path(session_key, "laps") is not None

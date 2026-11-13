@@ -21,6 +21,7 @@ def no_network(monkeypatch, tmp_path):
     monkeypatch.setattr(requests.Session, "send", blocked)
     monkeypatch.setattr(openf1, "CACHE_DIR", tmp_path / "openf1")
     monkeypatch.setattr(openf1.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(openf1, "MIN_INTERVAL", 0)
 
 
 def load_fixture(name: str) -> list[dict]:

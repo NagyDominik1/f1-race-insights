@@ -14,6 +14,7 @@ class FakeResponse:
         self.ok = status_code < 400
         self._payload = payload
         self.text = str(payload)
+        self.headers = {}
 
     def json(self):
         return self._payload
@@ -24,8 +25,8 @@ def fake_api(monkeypatch):
     """Replace the HTTP call with a queue of canned responses; returns the call log."""
     responses, calls = [], []
 
-    def fake_get(url, params, timeout):
-        calls.append((url, params))
+    def fake_get(url, timeout):
+        calls.append(url)
         return responses.pop(0)
 
     monkeypatch.setattr(openf1._session, "get", fake_get)
@@ -78,3 +79,11 @@ def test_no_results_is_empty_and_not_cached(fake_api):
     assert openf1.get("laps", session_key=4) == []
     assert openf1.get("laps", session_key=4) == []
     assert len(calls) == 2
+
+
+def test_range_filters_are_sent_as_operators(fake_api):
+    responses, calls = fake_api
+    responses.append(FakeResponse(200, [{"x": 1}]))
+    openf1.get("location", cache=False, session_key=5, **{"date>": "2024-07-21T14:12:07+00:00", "date<": "b"})
+    assert calls[0].endswith("location?session_key=5&date>=2024-07-21T14%3A12%3A07%2B00%3A00&date<=b")
+    assert not openf1.CACHE_DIR.exists()

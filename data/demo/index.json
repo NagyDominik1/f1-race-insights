@@ -1,0 +1,33 @@
+{
+ "meetings": [
+  {
+   "meeting_key": 1241,
+   "meeting_name": "Hungarian Grand Prix",
+   "country_name": "Hungary",
+   "circuit_short_name": "Hungaroring",
+   "year": 2024,
+   "date_start": "2024-07-19T11:30:00.000Z",
+   "date_end": "2024-07-21T15:00:00.000Z"
+  }
+ ],
+ "sessions": [
+  {
+   "session_key": 9562,
+   "meeting_key": 1241,
+   "session_name": "Qualifying",
+   "session_type": "Qualifying",
+   "date_start": "2024-07-20T14:00:00.000Z",
+   "date_end": "2024-07-20T15:00:00.000Z",
+   "slug": "2024_hungary_qualifying"
+  },
+  {
+   "session_key": 9566,
+   "meeting_key": 1241,
+   "session_name": "Race",
+   "session_type": "Race",
+   "date_start": "2024-07-21T13:00:00.000Z",
+   "date_end": "2024-07-21T15:00:00.000Z",
+   "slug": "2024_hungary_race"
+  }
+ ]
+}

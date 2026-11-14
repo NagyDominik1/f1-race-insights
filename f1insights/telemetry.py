@@ -1,5 +1,7 @@
 """Pure telemetry transforms: resampling, track outline, replay and ghost-lap data."""
 
+import base64
+
 import numpy as np
 import pandas as pd
 
@@ -100,3 +102,104 @@ def to_box(x: np.ndarray, y: np.ndarray, fit: dict) -> tuple[np.ndarray, np.ndar
     """Apply a fit_to_box transform; NaN stays NaN."""
     u, v = _oriented(x, y, fit["rotate"])
     return (u - fit["u_min"]) * fit["scale"], (v - fit["v_min"]) * fit["scale"]
+
+
+# --- race replay -----------------------------------------------------------
+
+MISSING = -32768  # int16 sentinel for "no position at this sample"
+
+
+def encode_int16(values: np.ndarray) -> str:
+    """Base64 of little-endian int16 values: a compact payload a browser reads as Int16Array."""
+    return base64.b64encode(np.asarray(values).astype("<i2").tobytes()).decode("ascii")
+
+
+def replay_tracks(race_location: pd.DataFrame, fit: dict, hz: float, smooth: int = 3) -> tuple[pd.DatetimeIndex, pd.DataFrame, pd.DataFrame]:
+    """Box coordinates of every driver on one gap-free time grid: (grid, x, y), columns = driver_number.
+
+    OpenF1 location timestamps jitter by about 0.1 s, which makes cars pulse
+    along the track; a centred rolling mean over `smooth` samples evens that
+    out (at 2 Hz it moves a car less than ~2 m sideways in a corner).
+    """
+    step = pd.Timedelta(seconds=1 / hz)
+    grid = pd.date_range(race_location["date"].min(), race_location["date"].max(), freq=step)
+    wide = race_location.pivot(index="date", columns="driver_number", values=["x", "y"]).reindex(grid)
+    # samples without a full window (start, end, next to a gap) keep their raw value
+    wide = wide.rolling(smooth, center=True).mean().fillna(wide)
+    x, y = to_box(wide["x"].to_numpy(), wide["y"].to_numpy(), fit)
+    columns = wide["x"].columns
+    return grid, pd.DataFrame(x, index=grid, columns=columns), pd.DataFrame(y, index=grid, columns=columns)
+
+
+def _interleave(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """x0, y0, x1, y1, ... as int16 with MISSING where a sample is NaN."""
+    pairs = np.column_stack([x, y])
+    return np.where(np.isnan(pairs), MISSING, np.round(pairs)).astype("int16").ravel()
+
+
+def _per_driver(df: pd.DataFrame, columns: list[str]) -> dict:
+    """{driver_number: [[row values], ...]} for a few columns, as plain Python lists."""
+    return {int(number): group[columns].to_numpy().tolist() for number, group in df.groupby("driver_number")}
+
+
+def replay_payload(
+    race_location: pd.DataFrame, outline_lap: pd.DataFrame, laps: pd.DataFrame,
+    positions: pd.DataFrame, stints: pd.DataFrame, pit_stops: pd.DataFrame,
+    periods: pd.DataFrame, drivers: pd.DataFrame, classification: pd.DataFrame, hz: float,
+) -> dict:
+    """Everything the replay component needs, as one compact JSON-serialisable dict.
+
+    Times are seconds since the first sample. Car paths are base64 int16 arrays
+    on a shared grid (sample i is at i / hz seconds); events are short lists.
+    """
+    outline = track_outline(outline_lap, points=500)
+    fit = fit_to_box(outline["x"], outline["y"])
+    grid, x, y = replay_tracks(race_location, fit, hz)
+    origin = grid[0]
+
+    def seconds(dates: pd.Series) -> pd.Series:
+        return pd.Series(seconds_since(dates, origin), index=dates.index).round(1)
+
+    lap_starts = laps["date_start"].fillna(laps.groupby("lap_number")["date_start"].transform("min"))
+    laps = laps.assign(t=seconds(lap_starts), end=seconds(lap_starts) + laps["LapTimeSeconds"].fillna(0))
+    laps = laps.dropna(subset=["t"]).sort_values(["driver_number", "lap_number"])
+    lap_times = {int(number): group["t"].tolist() for number, group in laps.groupby("driver_number")}
+    last_lap_end = laps.groupby("driver_number")["end"].max()
+
+    feed = positions.assign(t=seconds(positions["date"]).clip(lower=0), position=positions["position"].astype(int))
+    stint_rows = stints.dropna(subset=["lap_start", "lap_end"]).assign(
+        age=lambda d: d["tyre_age_at_start"].fillna(0))[["driver_number", "lap_start", "lap_end", "compound", "age"]]
+    stint_rows = stint_rows.astype({"lap_start": int, "lap_end": int, "age": int, "compound": str})
+    # OpenF1 stamps a pit stop when the car leaves the pit lane; pit_duration reaches back from there
+    pits = pit_stops.dropna(subset=["pit_duration"]).assign(end=lambda d: seconds(d["date"]))
+    pits = pits.assign(start=(pits["end"] - pits["pit_duration"]).round(1))
+
+    position_feed, stint_lists, pit_lists = (
+        _per_driver(feed, ["t", "position"]), _per_driver(stint_rows, ["lap_start", "lap_end", "compound", "age"]),
+        _per_driver(pits, ["start", "end"]),
+    )
+    info = drivers.set_index("driver_number")
+    retired = classification.loc[~classification["classified"], "driver_number"].tolist()
+    cars = [
+        {
+            "n": int(number), "a": info.loc[number, "acronym"], "c": info.loc[number, "team_colour"],
+            "team": info["team_name"].fillna("").loc[number],
+            "xy": encode_int16(_interleave(x[number].to_numpy(), y[number].to_numpy())),
+            "laps": lap_times.get(int(number), []), "pos": position_feed.get(int(number), []),
+            "stints": stint_lists.get(int(number), []), "pits": pit_lists.get(int(number), []),
+            "out": float(last_lap_end[number]) if number in retired and number in last_lap_end.index else None,
+        }
+        for number in x.columns if number in info.index
+    ]
+    track_x, track_y = to_box(outline["x"], outline["y"], fit)
+    leader_laps = laps.groupby("lap_number")["t"].min()
+    neutral = periods.assign(t0=seconds(periods["start"]), t1=seconds(periods["end"])) if not periods.empty else periods
+    return {
+        "hz": hz, "samples": len(grid), "duration": round((len(grid) - 1) / hz, 1),
+        "width": fit["width"], "height": fit["height"],
+        "track": {"x": np.round(track_x).astype(int).tolist(), "y": np.round(track_y).astype(int).tolist()},
+        "lapStarts": leader_laps.tolist(), "totalLaps": int(laps["lap_number"].max()),
+        "finish": float(laps.loc[laps["lap_number"] == laps["lap_number"].max(), "end"].min()),
+        "periods": neutral[["t0", "t1", "kind"]].to_numpy().tolist() if not periods.empty else [],
+        "cars": cars,
+    }

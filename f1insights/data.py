@@ -418,6 +418,19 @@ def load_car_data(
                         session_key, driver_number, start, end, use_demo)
 
 
+def race_location_path(session_key: int) -> Path:
+    """Where the downsampled replay table of a session is cached."""
+    return DERIVED_DIR / f"race_location_{int(session_key)}.parquet"
+
+
+def has_race_location(session_key: int) -> bool:
+    """True if the replay table is available without fetching (demo data or a fresh cache file)."""
+    if _demo_path(session_key, "race_location") is not None:
+        return True
+    path = race_location_path(session_key)
+    return path.exists() and openf1._is_fresh(path, _session_ttl(session_key))
+
+
 def load_race_location(
     session_key: int, use_demo: bool = True,
     progress: Callable[[float], None] | None = None,
@@ -426,13 +439,14 @@ def load_race_location(
 
     A race is ~35 000 location rows per driver (~4.5 MB of JSON), so each driver
     is fetched separately, resampled at once and the raw rows are discarded.
-    The result of a finished session is stored as parquet in cache/derived/.
+    The result is stored as parquet in cache/derived/ (kept forever for a
+    finished session, six hours otherwise).
     progress, if given, is called with the fraction of drivers done.
     """
     if use_demo and (demo := _demo_table(session_key, "race_location")) is not None:
         return demo
-    path = DERIVED_DIR / f"race_location_{int(session_key)}.parquet"
-    if path.exists():
+    path = race_location_path(session_key)
+    if has_race_location(session_key):
         return pd.read_parquet(path)
     grid = telemetry.time_grid(load_laps(session_key, use_demo), REPLAY_HZ)
     numbers = load_drivers(session_key, use_demo)["driver_number"].tolist()
@@ -450,7 +464,7 @@ def load_race_location(
         return pd.DataFrame(columns=RACE_LOCATION_COLUMNS)
     location = pd.concat(parts, ignore_index=True).astype({"driver_number": "Int64"})
     location = location[RACE_LOCATION_COLUMNS]
-    if _session_ttl(session_key) is None and not location.empty:
+    if not location.empty:
         path.parent.mkdir(parents=True, exist_ok=True)
         location.to_parquet(path, index=False)
     return location

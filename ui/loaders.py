@@ -26,9 +26,9 @@ results = _cached(data.load_results)
 
 
 @st.cache_data(ttl=TTL, max_entries=2, show_spinner=False)
-def race_location(session_key: int, _progress: Callable[[float], None] | None = None) -> pd.DataFrame:
+def race_location(session_key: int) -> pd.DataFrame:
     """2 Hz positions of all drivers; the heaviest table, so only two races stay in memory."""
-    return data.load_race_location(session_key, progress=_progress)
+    return data.load_race_location(session_key)
 
 
 @st.cache_data(ttl=TTL, max_entries=24, show_spinner=False)

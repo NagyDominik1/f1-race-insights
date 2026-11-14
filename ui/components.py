@@ -15,10 +15,18 @@ REPO_URL = "https://github.com/NagyDominik1/f1-race-insights"
 DISCLAIMER = "Unofficial project. Data from OpenF1. Not affiliated with Formula 1."
 
 
-def inject_css() -> None:
-    """The single global style block, plus the shared Plotly template."""
+def inject_css(extra: str = "") -> None:
+    """The single style block of a page (global CSS + optional page CSS) and the Plotly template.
+
+    Streamlit keeps only one style-only st.html per run, so every page calls this exactly once.
+    """
     theme.register_plotly_template()
-    st.html(f"<style>{theme.global_css()}</style>")
+    st.html(f"<style>{theme.global_css()}{extra}</style>")
+
+
+def template_text(name: str) -> str:
+    """Raw text of a file in ui/templates."""
+    return _template(name)
 
 
 @lru_cache
@@ -58,6 +66,7 @@ def plot(fig: go.Figure, key: str) -> None:
 
 def page_header() -> state.Selection:
     """Shared header of the inner pages: weekend, session, selector, back to start."""
+    inject_css()
     selection = state.resolve()
     meeting = selection.meeting
     session_date = selection.sessions.loc[selection.session_name, "date_start"]

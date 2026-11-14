@@ -54,8 +54,8 @@
   function drawTrack(canvas, seconds) {
     const [ctx, w, h] = fitCanvas(canvas);
     const T = DATA.track;
-    const scale = Math.min(w * 0.8, (h * 0.56) / T.aspect);
-    const ox = (w - scale) / 2, oy = h * 0.07 + (h * 0.56 - scale * T.aspect) / 2;
+    const scale = Math.min(w * 0.8, (h * 0.5) / T.aspect);
+    const ox = (w - scale) / 2, oy = h * 0.07 + (h * 0.5 - scale * T.aspect) / 2;
     const X = v => ox + v * scale, Y = v => oy + v * scale;
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     ctx.strokeStyle = '#2B2D31';
@@ -63,7 +63,7 @@
     ctx.beginPath();
     T.x.forEach((v, i) => (i ? ctx.lineTo(X(v), Y(T.y[i])) : ctx.moveTo(X(v), Y(T.y[i]))));
     ctx.closePath(); ctx.stroke();
-    const size = Math.max(16, scale * 0.034);
+    const size = Math.max(20, scale * 0.045);
     DATA.cars.forEach((car, k) => {
       const n = car.x.length;
       const t = reduced ? (k / DATA.cars.length) * car.seconds : (seconds * 2.5 + k * 9) % car.seconds;

@@ -2,10 +2,7 @@
 
 import streamlit as st
 
-from ui import components
-
 st.set_page_config(page_title="F1 Race Insights", page_icon="🏁", layout="wide")
-components.inject_css()
 
 pages = {
     "": [st.Page("views/landing.py", title="Start", url_path="start", default=True)],

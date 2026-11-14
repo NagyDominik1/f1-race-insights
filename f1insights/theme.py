@@ -98,9 +98,12 @@ def css_variables() -> str:
 
 
 def global_css() -> str:
-    """One CSS block for the whole Streamlit app (bento tiles, type, navigation)."""
+    """One CSS block for the whole Streamlit app (bento tiles, type, navigation).
+
+    The Inter font itself is loaded through .streamlit/config.toml: st.html
+    drops style blocks that contain an @import rule.
+    """
     return f"""
-@import url('{FONT_URL}');
 {css_variables()}
 html, body, .stApp, [data-testid="stAppViewContainer"] {{ background: var(--canvas); }}
 .stApp, .stApp p, .stApp li, .stApp label, .stApp button, .stApp input {{ font-family: var(--font); }}
@@ -112,7 +115,7 @@ h3 {{ font-size: 1.2rem; padding-bottom: .2rem; }}
 [data-testid="stHeader"] {{ background: rgba(251,251,253,.82); backdrop-filter: saturate(180%) blur(18px); border-bottom: 1px solid var(--hairline); }}
 [data-testid="stTopNavLink"], [data-testid="stTopNavSection"] {{ font-weight: 500; }}
 
-/* bento tiles: st.container(border=True, key="tile-<tone>-<name>") */
+/* bento tiles: st.container(border=True) with a key that starts with "tile-" plus the tone */
 [class*="st-key-tile-"] {{ border: 0 !important; border-radius: 24px !important; padding: 1.5rem 1.6rem !important;
   background: var(--white); box-shadow: 0 0 0 1px var(--hairline); }}
 [class*="st-key-tile-gray-"] {{ background: var(--tile); box-shadow: none; }}

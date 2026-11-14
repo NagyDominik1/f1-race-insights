@@ -58,7 +58,7 @@ def tile_html(canvas_id: str, title: str, text: str, cta: str) -> str:
 
 
 state.resolve()  # keeps the selection in the URL, so a shared link opens the same race
-st.html(f"<style>{components._template('landing.css')}</style>")
+components.inject_css(extra=components.template_text("landing.css"))
 
 with st.container(key="landing"):
     st.html(

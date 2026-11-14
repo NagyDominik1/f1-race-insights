@@ -4,7 +4,7 @@ primaryColor = "#E10600"
 backgroundColor = "#FBFBFD"
 secondaryBackgroundColor = "#F2F2F5"
 textColor = "#1D1D1F"
-font = "Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
 baseRadius = "large"
 
 [client]

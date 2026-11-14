@@ -52,7 +52,7 @@ cars = [
     for name, info, driver in [(first, info_a, driver_a), (second, info_b, driver_b)]
 ]
 payload = telemetry.ghost_payload(lap_a, lap_b, sectors, cars) | {"even": telemetry.EVEN_SECONDS}
-components.embed("ghost.html", payload, height=640)
+components.embed("ghost.html", payload)
 st.caption(
     f"The track is cut into {telemetry.MINI_SECTORS} mini-sectors of equal distance and coloured by the driver who was "
     f"faster there. Time inside the lap is rebuilt from distance and measured speed and is good to roughly five "

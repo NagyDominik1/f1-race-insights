@@ -51,7 +51,7 @@ def render_template(name: str, payload: dict) -> str:
     return html.replace("__DATA__", blob)
 
 
-def embed(name: str, payload: dict, height: int) -> None:
+def embed(name: str, payload: dict, height: int | str = "content") -> None:
     """Show a self-contained HTML/JS component in an iframe.
 
     st.iframe is the successor of the deprecated st.components.v1.html.

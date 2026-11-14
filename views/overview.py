@@ -51,7 +51,7 @@ def race_overview() -> None:
         mover = movers.loc[movers["gained"].idxmax()]
         tiles.append({"label": "Biggest mover", "number": int(mover["gained"]), "prefix": "+",
                       "note": f"{mover['acronym']}, P{mover['grid']} to P{mover['finish']}"})
-    components.embed("kpi.html", {"tiles": tiles}, height=150)
+    components.embed("kpi.html", {"tiles": tiles})
 
     chart, story = st.columns([2, 1])
     with chart, components.tile("bump"):
@@ -92,7 +92,7 @@ def qualifying_overview() -> None:
         tiles.append({"label": "Margin to second", "number": float(best.iloc[1]["gap"]), "decimals": 3,
                       "suffix": " s", "note": f"over {best.iloc[1]['acronym']}"})
     tiles.append({"label": "Timed laps", "number": len(timed), "note": f"by {timed['acronym'].nunique()} drivers"})
-    components.embed("kpi.html", {"tiles": tiles}, height=150)
+    components.embed("kpi.html", {"tiles": tiles})
     with components.tile("gaps"):
         components.tile_heading("Gap to the fastest lap", "Each driver's best lap of the session, slowest at the top.")
         components.plot(charts.gap_to_fastest(best, styles), "gaps")

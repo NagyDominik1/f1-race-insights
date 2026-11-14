@@ -41,7 +41,7 @@ def race_view() -> None:
         {"label": f"Laps where {first} was faster", "number": int((deltas["delta"] < 0).sum()),
          "note": f"{second}: {int((deltas['delta'] >= 0).sum())}"},
     ]
-    components.embed("kpi.html", {"tiles": tiles}, height=150)
+    components.embed("kpi.html", {"tiles": tiles})
     chart, side = st.columns([2, 1])
     with chart, components.tile("delta"):
         components.tile_heading(
@@ -83,7 +83,7 @@ def qualifying_view() -> None:
         {"label": f"{first} best lap", "number": float(table.loc[0, first]), "format": "laptime", "note": ""},
         {"label": f"{second} best lap", "number": float(table.loc[0, second]), "format": "laptime", "note": ""},
     ]
-    components.embed("kpi.html", {"tiles": tiles}, height=150)
+    components.embed("kpi.html", {"tiles": tiles})
     chart, side = st.columns([2, 1])
     with chart, components.tile("sectors"):
         components.tile_heading("Where the gap comes from",

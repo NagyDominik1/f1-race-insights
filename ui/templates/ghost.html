@@ -5,9 +5,9 @@
 <style>
 /*__TOKENS__*/
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; }
+html, body { margin: 0; }
 body { font-family: var(--font); color: var(--ink); background: transparent; }
-.stage { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; height: 100%; padding: 1px; }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; height: 636px; padding: 1px; }
 .map { position: relative; background: var(--tile); border-radius: 24px; overflow: hidden; }
 #view { position: absolute; inset: 0; width: 100%; height: 100%; }
 .legend { position: absolute; left: 20px; bottom: 16px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--secondary); }
@@ -34,7 +34,7 @@ button { font-family: inherit; }
 .seg button[aria-pressed="true"] { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.14); font-weight: 600; }
 .count { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
-@media (max-width: 720px) { .stage { grid-template-columns: 1fr; grid-template-rows: 300px auto; } }
+@media (max-width: 720px) { .stage { grid-template-columns: 1fr; grid-template-rows: 300px auto; height: auto; } }
 </style>
 </head>
 <body>

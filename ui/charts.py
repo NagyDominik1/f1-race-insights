@@ -34,7 +34,7 @@ def bump_chart(by_lap: pd.DataFrame, styles: pd.DataFrame, highlighted: list[str
     final = pd.Series([wide.loc[last[name], name] for name in wide.columns], index=wide.columns)
     fig.add_scatter(
         x=last.to_numpy() + 0.8, y=final, text=wide.columns, mode="text", textposition="middle right",
-        textfont=dict(size=11, color=theme.INK), hoverinfo="skip", showlegend=False,
+        textfont=dict(size=11, color=theme.INK), hoverinfo="skip", showlegend=False, cliponaxis=False,
     )
     traces = list(range(len(wide.columns)))
     fig.frames = [
@@ -44,7 +44,7 @@ def bump_chart(by_lap: pd.DataFrame, styles: pd.DataFrame, highlighted: list[str
     ]
     play = dict(frame=dict(duration=130, redraw=False), transition=dict(duration=0), mode="immediate", fromcurrent=False)
     fig.update_layout(
-        height=560, showlegend=False, margin=dict(l=8, r=8, t=46, b=8),
+        height=560, showlegend=False, margin=dict(l=8, r=30, t=46, b=8),
         xaxis=dict(title="Lap", range=[0, laps.max() + 4.5]),
         yaxis=dict(title="Position", range=[len(wide.columns) + 0.6, 0.4], tickmode="linear", tick0=1, dtick=1,
                    showgrid=False, automargin=True, ticks=""),

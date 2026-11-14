@@ -9,3 +9,4 @@ baseRadius = "large"
 
 [client]
 toolbarMode = "minimal"
+showErrorDetails = "none"

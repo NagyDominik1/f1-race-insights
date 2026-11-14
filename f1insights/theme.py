@@ -61,7 +61,7 @@ def driver_styles(drivers: pd.DataFrame, acronyms: list[str]) -> pd.DataFrame:
 def plotly_template() -> go.layout.Template:
     """Light template: ink text, thin axes, faint horizontal gridlines only."""
     axis = dict(
-        showgrid=False, zeroline=False, showline=True, linecolor=HAIRLINE, linewidth=1,
+        showgrid=False, zeroline=False, showline=True, linecolor=HAIRLINE, linewidth=1, automargin=True,
         ticks="outside", tickcolor=HAIRLINE, ticklen=4,
         tickfont=dict(color=SECONDARY, size=12), title=dict(font=dict(color=SECONDARY, size=12)),
     )

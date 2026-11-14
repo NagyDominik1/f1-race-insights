@@ -1,6 +1,8 @@
 """Reusable UI pieces: global CSS, bento tiles, the page header and HTML components."""
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 
@@ -8,11 +10,22 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from f1insights import theme
+from f1insights.openf1 import OpenF1Error
 from ui import state
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 REPO_URL = "https://github.com/NagyDominik1/f1-race-insights"
 DISCLAIMER = "Unofficial project. Data from OpenF1. Not affiliated with Formula 1."
+RACE_SESSIONS = ("Race", "Sprint")
+PLOT_CONFIG = {"displayModeBar": False, "responsive": True}
+# plays the frame "full" once after load; with reduced motion it jumps straight to it
+ANIMATE_IN = """
+const gd = document.getElementById('{plot_id}');
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const ms = still ? 0 : 900;
+setTimeout(() => Plotly.animate(gd, ['full'], {frame: {duration: ms, redraw: false},
+  transition: {duration: ms, easing: 'cubic-out'}, mode: 'immediate'}), still ? 0 : 350);
+"""
 
 
 def inject_css(extra: str = "") -> None:
@@ -24,13 +37,9 @@ def inject_css(extra: str = "") -> None:
     st.html(f"<style>{theme.global_css()}{extra}</style>")
 
 
+@lru_cache
 def template_text(name: str) -> str:
     """Raw text of a file in ui/templates."""
-    return _template(name)
-
-
-@lru_cache
-def _template(name: str) -> str:
     return (TEMPLATE_DIR / name).read_text(encoding="utf-8")
 
 
@@ -38,7 +47,7 @@ def render_template(name: str, payload: dict) -> str:
     """Fill an HTML template with the design tokens, the shared car drawing and JSON data."""
     blob = json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
     head = f"@import url('{theme.FONT_URL}');{theme.css_variables()}"
-    html = _template(name).replace("/*__TOKENS__*/", head).replace("/*__CAR__*/", _template("car.js"))
+    html = template_text(name).replace("/*__TOKENS__*/", head).replace("/*__CAR__*/", template_text("car.js"))
     return html.replace("__DATA__", blob)
 
 
@@ -61,7 +70,29 @@ def tile_heading(title: str, sub: str = "") -> None:
 
 def plot(fig: go.Figure, key: str) -> None:
     """Render a Plotly figure with the project template and no mode bar."""
-    st.plotly_chart(fig, theme=None, key=key, config={"displayModeBar": False})
+    st.plotly_chart(fig, theme=None, key=key, config=PLOT_CONFIG)
+
+
+def animated_plot(fig: go.Figure) -> None:
+    """Render a figure whose frame "full" should play once on load (in an iframe)."""
+    height = int(fig.layout.height or 450)
+    html = fig.to_html(include_plotlyjs="cdn", full_html=True, auto_play=False, config=PLOT_CONFIG,
+                       post_script=ANIMATE_IN, default_height=f"{height}px")
+    style = f"<style>@import url('{theme.FONT_URL}');body{{margin:0;background:{theme.WHITE}}}</style>"
+    st.iframe(html.replace("<head>", f"<head>{style}", 1), height=height + 10)
+
+
+@contextmanager
+def loading(label: str) -> Iterator[None]:
+    """Spinner around data loading; an OpenF1 failure becomes a friendly message, not a traceback."""
+    try:
+        with st.spinner(label):
+            yield
+    except OpenF1Error as exc:
+        state.stop_with_error(
+            "OpenF1 did not answer, so this view cannot be loaded right now. Try again in a minute, or "
+            f"switch to the 2024 Hungarian Grand Prix, which works offline.\n\nDetails: {exc}"
+        )
 
 
 def page_header() -> state.Selection:
@@ -85,10 +116,15 @@ def page_header() -> state.Selection:
     return selection
 
 
-def empty_state(message: str) -> None:
+def is_race(selection: state.Selection) -> bool:
+    """True for sessions with wheel-to-wheel racing (Race, Sprint)."""
+    return selection.session_name in RACE_SESSIONS
+
+
+def empty_state(message: str, title: str = "Nothing to show yet") -> None:
     """A calm message for "nothing to show", then stop the page."""
     with tile("empty", "gray"):
-        st.html(f'<h3>Nothing to show yet</h3><p class="tile-sub">{message}</p>')
+        st.html(f'<h3>{title}</h3><p class="tile-sub">{message}</p>')
     footer()
     st.stop()
 

@@ -5,7 +5,7 @@ from collections.abc import Callable
 import pandas as pd
 import streamlit as st
 
-from f1insights import data
+from f1insights import analysis, data
 
 TTL = "6h"
 
@@ -40,3 +40,12 @@ def lap_telemetry(
     location = data.load_location(session_key, driver_number, start - pad, end + pad)
     car = data.load_car_data(session_key, driver_number, start - pad, end + pad)
     return location, car
+
+
+@st.cache_data(ttl=TTL, max_entries=8, show_spinner=False)
+def analysed_laps(session_key: int, race: bool) -> pd.DataFrame:
+    """Laps flagged by the clean-lap filter and matched to their tyre stint."""
+    periods = analysis.neutralisations(race_control(session_key))
+    flagged = analysis.clean_laps(laps(session_key), pit_stops(session_key), periods,
+                                  reference="median" if race else "min")
+    return analysis.with_stints(flagged, stints(session_key))

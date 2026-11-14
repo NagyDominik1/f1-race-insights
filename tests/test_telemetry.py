@@ -127,3 +127,75 @@ def test_replay_payload_shape(raw_laps, raw_stints, drivers):
     assert len(nor["laps"]) == 70 and nor["stints"] == [[1, 17, "MEDIUM", 0], [18, 45, "HARD", 1], [46, 70, "MEDIUM", 1]]
     assert nor["pos"][0][1] == 1 and nor["out"] is None
     assert len(nor["pits"]) == 2 and all(20 < end - start < 23 for start, end in nor["pits"])
+
+
+def as_feeds(lap: pd.DataFrame, start: pd.Timestamp) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Turn a synthetic (t, x, y) lap into location and car-data feeds padded like the real ones."""
+    step = lap["t"].iloc[1]
+    seconds = lap["t"].iloc[-1]
+    t = np.arange(-4, len(lap) + 4) * step  # the circle is periodic, so padding simply continues it
+    one_lap = np.unwrap(np.arctan2(lap["y"], lap["x"]))
+    angle = 2 * np.pi * np.floor(t / seconds) + np.interp(t % seconds, lap["t"], one_lap)
+    radius = np.hypot(lap["x"].iloc[0], lap["y"].iloc[0])
+    location = pd.DataFrame({"date": start + pd.to_timedelta(t, unit="s"), "x": radius * np.cos(angle), "y": radius * np.sin(angle)})
+    speed = np.gradient(angle, t) * radius / 10 * 3.6  # km/h, x and y are in 1/10 m
+    car = pd.DataFrame({"date": location["date"] + pd.Timedelta(milliseconds=40), "speed": speed, "throttle": 100,
+                        "brake": 0, "n_gear": 7, "rpm": 11000, "drs": 0})
+    return location, car
+
+
+def ghost(seconds: float, speed_profile=None) -> pd.DataFrame:
+    lap = circle_lap(seconds=seconds, speed_profile=speed_profile)
+    location, car = as_feeds(lap, T0)
+    return telemetry.ghost_lap(location, car, T0, T0 + pd.Timedelta(seconds=seconds))
+
+
+def test_ghost_lap_fraction_and_time_are_monotonic():
+    lap = ghost(80.0)
+    assert len(lap) == telemetry.GHOST_POINTS
+    assert lap["fraction"].iloc[0] == 0 and lap["fraction"].iloc[-1] == 1
+    assert (np.diff(lap["fraction"]) > 0).all() and (np.diff(lap["t"]) > 0).all()
+    assert lap["t"].iloc[0] == 0 and lap["t"].iloc[-1] == pytest.approx(80.0)
+    assert lap.loc[250, "t"] == pytest.approx(40.0, abs=0.05)  # constant speed: half the distance, half the time
+    assert lap["speed"].round(1).eq(141.4).all()  # car data joined by time: 3 142 m in 80 s
+
+
+def test_ghost_lap_on_real_fixture():
+    location = data.location_from_raw(load_fixture("location_nor_fastest_lap.json"))
+    car = data.car_data_from_raw(load_fixture("car_data_nor_fastest_lap.json"))
+    start = location["date"].min() + pd.Timedelta(seconds=1)
+    lap = telemetry.ghost_lap(location, car, start, start + pd.Timedelta(seconds=81.712))
+    assert (np.diff(lap["t"]) >= 0).all() and lap["t"].iloc[-1] == pytest.approx(81.712)
+    assert lap["speed"].between(60, 330).all() and lap["speed"].max() > 280
+
+
+def test_lap_delta_sign_and_final_gap():
+    fast, slow = ghost(80.0), ghost(81.0)
+    delta = telemetry.lap_delta(fast, slow)
+    assert delta[0] == 0 and delta[-1] == pytest.approx(-1.0)
+    assert (delta[1:] < 0).all()  # negative: the first lap is ahead everywhere
+    assert (telemetry.lap_delta(slow, fast)[1:] > 0).all()
+
+
+def test_mini_sector_winner_on_synthetic_laps():
+    # same lap time, but the first driver is quicker in the first half and slower in the second
+    early = ghost(80.0, speed_profile=lambda s: np.where(s < 0.4, s * 1.25, 0.5 + (s - 0.4) / 0.6 * 0.5))
+    steady = ghost(80.0)
+    sectors = telemetry.mini_sectors(early, steady, count=10, even=0.03)
+    assert sectors["faster"].tolist() == ["first"] * 5 + ["second"] * 5
+    assert sectors["delta"].sum() == pytest.approx(0, abs=1e-6)
+    assert sectors[["first", "second"]].sum().round(3).tolist() == [80.0, 80.0]
+    assert sectors["first"].iloc[0] == pytest.approx(6.4, abs=0.1)  # 10% of the lap at 1.25 times the average speed
+    same = telemetry.mini_sectors(steady, steady, count=10)
+    assert (same["faster"] == "even").all()
+
+
+def test_ghost_payload_shape():
+    fast, slow = ghost(80.0), ghost(81.0)
+    sectors = telemetry.mini_sectors(fast, slow)
+    payload = telemetry.ghost_payload(fast, slow, sectors, [{"a": "AAA", "c": "#FF8000"}, {"a": "BBB", "c": "#FF8000"}])
+    assert [car["a"] for car in payload["cars"]] == ["AAA", "BBB"]
+    assert [car["seconds"] for car in payload["cars"]] == [80.0, 81.0]
+    assert len(payload["cars"][0]["x"]) == len(payload["delta"]) == telemetry.GHOST_POINTS
+    assert len(payload["sectors"]) == telemetry.MINI_SECTORS and {s[2] for s in payload["sectors"]} == {0}
+    assert payload["delta"][-1] == -1.0 and payload["width"] == telemetry.BOX

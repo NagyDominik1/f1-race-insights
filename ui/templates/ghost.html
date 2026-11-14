@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+/*__TOKENS__*/
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font-family: var(--font); color: var(--ink); background: transparent; }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; height: 100%; padding: 1px; }
+.map { position: relative; background: var(--tile); border-radius: 24px; overflow: hidden; }
+#view { position: absolute; inset: 0; width: 100%; height: 100%; }
+.legend { position: absolute; left: 20px; bottom: 16px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--secondary); }
+.legend i { display: inline-block; width: 26px; height: 7px; border-radius: 4px; margin-right: 6px; vertical-align: 1px; }
+.side { display: flex; flex-direction: column; gap: 12px; }
+.card { background: var(--white); border-radius: 24px; box-shadow: 0 0 0 1px var(--hairline); padding: 18px 20px; }
+.card.sky { background: var(--sky); box-shadow: none; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+.label { font-size: 13px; font-weight: 500; color: var(--secondary); }
+.driver { display: grid; grid-template-columns: 6px 1fr auto; gap: 10px; align-items: center; padding: 7px 0; }
+.driver .bar { width: 6px; height: 26px; border-radius: 3px; }
+.driver .bar.dashed { background-image: repeating-linear-gradient(180deg, transparent 0 4px, #fff 4px 7px) !important; background-blend-mode: normal; }
+.driver b { font-size: 17px; letter-spacing: -0.01em; }
+.driver span { font-variant-numeric: tabular-nums; font-size: 15px; }
+.driver small { display: block; font-size: 11.5px; color: var(--secondary); font-weight: 400; }
+#delta { font-size: 46px; font-weight: 700; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; line-height: 1.05; margin-top: 8px; color: var(--red); }
+#who { font-size: 14px; margin-top: 4px; min-height: 40px; }
+.controls { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+button { font-family: inherit; }
+.play { border: 0; background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; cursor: pointer;
+  transition: background .25s var(--ease), transform .25s var(--ease); }
+.play:hover { background: var(--red); transform: translateY(-1px); }
+.seg { display: inline-flex; background: rgba(255,255,255,.6); border-radius: 999px; padding: 3px; }
+.seg button { border: 0; background: none; padding: 6px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; cursor: pointer; color: inherit; }
+.seg button[aria-pressed="true"] { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.14); font-weight: 600; }
+.count { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+@media (max-width: 720px) { .stage { grid-template-columns: 1fr; grid-template-rows: 300px auto; } }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="map">
+    <canvas id="view" aria-label="Track map coloured by the faster driver in each mini-sector, with both cars driving their lap"></canvas>
+    <div class="legend" id="legend"></div>
+  </div>
+  <div class="side">
+    <div class="card" id="drivers"></div>
+    <div class="card sky">
+      <div>
+        <div class="label">Gap at this point of the lap</div>
+        <div id="delta">0.000</div>
+        <div id="who"></div>
+      </div>
+      <div class="controls">
+        <button class="play" id="play">Replay</button>
+        <div class="seg" id="speeds" role="group" aria-label="Playback speed"></div>
+      </div>
+    </div>
+    <div class="card" id="counts"></div>
+  </div>
+</div>
+<script>
+/*__CAR__*/
+const D = __DATA__;
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = id => document.getElementById(id);
+const [A, B] = D.cars, N = A.t.length, EVEN = '#8E8E93';
+const sameColour = A.c.toLowerCase() === B.c.toLowerCase();
+
+// cards (text carries the meaning; colour only repeats it)
+const lapTime = s => { const m = Math.floor(s / 60); return m + ':' + (s - m * 60).toFixed(3).padStart(6, '0'); };
+$('drivers').innerHTML = '<div class="label">Fastest laps</div>' + D.cars.map((car, i) =>
+  `<div class="driver"><span class="bar${i && sameColour ? ' dashed' : ''}" style="background:${car.c}"></span>` +
+  `<b>${car.a}<small>${car.note}</small></b><span>${lapTime(car.seconds)}</span></div>`).join('');
+const wins = [0, 1, -1].map(w => D.sectors.filter(s => s[2] === w).length);
+$('counts').innerHTML = '<div class="label">Mini-sectors won</div>' +
+  `<div class="count"><span>${A.a}</span><b>${wins[0]}</b></div><div class="count"><span>${B.a}</span><b>${wins[1]}</b></div>` +
+  `<div class="count"><span>Too close to call</span><b>${wins[2]}</b></div>`;
+$('legend').innerHTML = `<span><i style="background:${A.c}"></i>${A.a} faster</span>` +
+  `<span><i style="background:${sameColour ? `repeating-linear-gradient(90deg, ${B.c} 0 5px, #fff 5px 8px)` : B.c}"></i>${B.a} faster</span>` +
+  `<span><i style="background:${EVEN}"></i>within ${D.even.toFixed(2)} s</span>`;
+
+const canvas = $('view'), ctx = canvas.getContext('2d');
+let W = 0, H = 0, scale = 1, ox = 0, oy = 0;
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), box = canvas.getBoundingClientRect();
+  W = box.width; H = box.height;
+  canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  scale = Math.min((W - 80) / D.width, (H - 110) / D.height);
+  ox = (W - D.width * scale) / 2; oy = (H - 30 - D.height * scale) / 2;
+  draw();
+}
+const X = v => ox + v * scale, Y = v => oy + v * scale;
+
+// position of a car after `seconds` of its own lap: find the lap fraction, then interpolate the path
+function at(car, seconds) {
+  if (seconds >= car.seconds) return {i: N - 1, f: 1, x: car.x[N - 1], y: car.y[N - 1], done: true};
+  let lo = 0, hi = N - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; car.t[mid] <= seconds ? lo = mid : hi = mid; }
+  const u = (seconds - car.t[lo]) / Math.max(1e-6, car.t[hi] - car.t[lo]);
+  return {i: lo, f: (lo + u) / (N - 1), x: car.x[lo] + (car.x[hi] - car.x[lo]) * u, y: car.y[lo] + (car.y[hi] - car.y[lo]) * u, done: false};
+}
+
+function strokeRange(i0, i1, colour, width, dash) {
+  ctx.beginPath();
+  for (let i = i0; i <= i1; i++) i === i0 ? ctx.moveTo(X(A.x[i]), Y(A.y[i])) : ctx.lineTo(X(A.x[i]), Y(A.y[i]));
+  ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+}
+let clock = 0, playing = !reduced, speed = 1, last = performance.now();
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'butt';
+  const width = Math.max(8, 170 * scale);
+  strokeRange(0, N - 1, '#2B2D31', width + 5);
+  D.sectors.forEach(([f0, f1, winner]) => {
+    const i0 = Math.round(f0 * (N - 1)), i1 = Math.round(f1 * (N - 1));
+    strokeRange(i0, i1, winner === 0 ? A.c : winner === 1 ? B.c : EVEN, width);
+    if (winner === 1 && sameColour) strokeRange(i0, i1, 'rgba(255,255,255,.85)', width, [5, 6]);  // second driver: dashed
+  });
+  // start/finish line
+  const dx = X(A.x[2]) - X(A.x[0]), dy = Y(A.y[2]) - Y(A.y[0]), len = Math.hypot(dx, dy) || 1, half = width / 2 + 7;
+  ctx.strokeStyle = '#1D1D1F'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(X(A.x[0]) + dy / len * half, Y(A.y[0]) - dx / len * half);
+  ctx.lineTo(X(A.x[0]) - dy / len * half, Y(A.y[0]) + dx / len * half); ctx.stroke();
+
+  const size = Math.max(22, 380 * scale);
+  const states = D.cars.map(car => at(car, clock));
+  D.cars.forEach((car, k) => {
+    const s = states[k], j = Math.min(N - 1, s.i + 3), h = Math.max(0, s.i - 2);
+    drawCar(ctx, X(s.x), Y(s.y), Math.atan2(car.y[j] - car.y[h], car.x[j] - car.x[h]), size, car.c, k && sameColour ? '#FFFFFF' : null);
+    ctx.font = '700 11px Inter, sans-serif';
+    const w = ctx.measureText(car.a).width + 10, lx = X(s.x) + size * 0.5, ly = Y(s.y) + (k ? size * 0.45 : -size * 0.45 - 16);
+    ctx.fillStyle = 'rgba(255,255,255,.94)'; ctx.beginPath(); ctx.roundRect(lx, ly, w, 16, 8); ctx.fill();
+    ctx.fillStyle = '#1D1D1F'; ctx.textBaseline = 'middle'; ctx.fillText(car.a, lx + 5, ly + 8.5);
+  });
+  // gap where the trailing car is now (same place on track, not same moment)
+  const f = Math.min(states[0].f, states[1].f), gap = D.delta[Math.round(f * (N - 1))];
+  const both = states[0].done && states[1].done, leader = gap <= 0 ? A : B, other = gap <= 0 ? B : A;
+  $('delta').textContent = Math.abs(gap).toFixed(3) + ' s';
+  $('who').textContent = both ? `${leader.a} finishes the lap ${Math.abs(gap).toFixed(3)} s ahead of ${other.a}.`
+    : Math.abs(gap) < 0.0005 ? 'Level.' : `${leader.a} ahead after ${Math.round(f * 100)}% of the lap.`;
+}
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (playing) {
+    clock += dt * speed;
+    if (clock > Math.max(A.seconds, B.seconds) + 0.3) { playing = false; $('play').textContent = 'Replay'; }
+    draw();
+  }
+  requestAnimationFrame(frame);
+}
+$('play').textContent = playing ? 'Pause' : 'Play both laps';
+$('play').addEventListener('click', () => {
+  if (!playing && clock > Math.max(A.seconds, B.seconds)) clock = 0;
+  playing = !playing; last = performance.now();
+  $('play').textContent = playing ? 'Pause' : clock > 0 ? 'Resume' : 'Play both laps';
+});
+[1, 2, 4].forEach(v => {
+  const b = document.createElement('button');
+  b.textContent = v === 1 ? 'Real time' : '×' + v; b.setAttribute('aria-pressed', v === speed);
+  b.addEventListener('click', () => { speed = v; [...$('speeds').children].forEach(c => c.setAttribute('aria-pressed', c === b)); });
+  $('speeds').appendChild(b);
+});
+new ResizeObserver(resize).observe(canvas);
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

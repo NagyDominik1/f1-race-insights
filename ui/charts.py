@@ -177,3 +177,37 @@ def sector_figure(table: pd.DataFrame, first: str, second: str, styles: pd.DataF
                                              zerolinecolor=theme.HAIRLINE),
                       yaxis=dict(title="", showgrid=False))
     return fig
+
+
+def speed_trace(first_lap: pd.DataFrame, second_lap: pd.DataFrame, first: str, second: str,
+                styles: pd.DataFrame) -> go.Figure:
+    """Speed of two laps against lap distance."""
+    fig = go.Figure()
+    for name, lap in [(first, first_lap), (second, second_lap)]:
+        fig.add_scatter(
+            x=lap["fraction"] * 100, y=lap["speed"], name=name, mode="lines",
+            line=dict(color=styles.loc[name, "colour"], dash=styles.loc[name, "dash"], width=2.2),
+            hovertemplate=f"<b>{name}</b> %{{y:.0f}} km/h at %{{x:.0f}}%<extra></extra>",
+        )
+    fig.update_layout(height=340, hovermode="x unified", xaxis=dict(title="Lap distance (%)", range=[0, 100]),
+                      yaxis=dict(title="Speed (km/h)"), margin=dict(l=8, r=8, t=40, b=8))
+    return fig
+
+
+def delta_trace(first_lap: pd.DataFrame, second_lap: pd.DataFrame, first: str, second: str,
+                styles: pd.DataFrame) -> go.Figure:
+    """Running time gap along the lap, filled towards the driver who is ahead."""
+    gap = first_lap["t"] - second_lap["t"]
+    x = first_lap["fraction"] * 100
+    fig = go.Figure()
+    for name, part in [(first, gap.clip(upper=0)), (second, gap.clip(lower=0))]:
+        colour = styles.loc[name, "colour"]
+        fig.add_scatter(x=x, y=part, mode="lines", line=dict(width=0), fill="tozeroy", name=f"{name} ahead",
+                        fillcolor=f"rgba({int(colour[1:3], 16)},{int(colour[3:5], 16)},{int(colour[5:7], 16)},0.28)",
+                        fillpattern=dict(shape="/" if styles.loc[name, "dash"] == "dash" else ""), hoverinfo="skip")
+    fig.add_scatter(x=x, y=gap, mode="lines", line=dict(color=theme.INK, width=2), showlegend=False,
+                    hovertemplate=f"{first} − {second}: %{{y:+.3f}} s at %{{x:.0f}}%<extra></extra>")
+    fig.update_layout(height=340, xaxis=dict(title="Lap distance (%)", range=[0, 100]),
+                      yaxis=dict(title=f"{first} − {second} (s)", zeroline=True, zerolinecolor=theme.HAIRLINE),
+                      margin=dict(l=8, r=8, t=40, b=8))
+    return fig

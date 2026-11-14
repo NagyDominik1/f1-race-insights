@@ -65,8 +65,9 @@ too much for Streamlit Community Cloud (about 1 GB of RAM) and for a browser pay
   samples scatters by ±26% around the speed reported in `car_data` (same lap, same car),
   although the positions themselves lie on the track. The replay therefore applies a
   centred 3-sample rolling mean to the 2 Hz paths (cars would otherwise pulse along the
-  track), and the ghost lap smooths distance against time and treats mini-sector gaps
-  below 0.03 s as even.
+  track). The ghost lap does not use position timestamps for timing at all: elapsed time
+  is rebuilt as distance / measured speed and scaled to the official lap time, and
+  mini-sector gaps below 0.03 s are treated as even.
 - The `date` of a pit stop is the moment the car leaves the pit lane; `pit_duration`
   reaches back from there (checked against the car's speed around NOR's first stop).
 - Safety car periods are not a field: they are parsed from `race_control` messages

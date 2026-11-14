@@ -203,3 +203,93 @@ def replay_payload(
         "periods": neutral[["t0", "t1", "kind"]].to_numpy().tolist() if not periods.empty else [],
         "cars": cars,
     }
+
+
+# --- ghost lap -------------------------------------------------------------
+
+GHOST_POINTS = 501
+MINI_SECTORS = 25
+EVEN_SECONDS = 0.03  # mini-sector gaps below this are within the timing noise
+MIN_SPEED = 10.0  # km/h floor, so a stationary car cannot divide by zero
+CHANNELS = ["speed", "throttle", "brake", "n_gear"]
+
+
+def ghost_lap(
+    location: pd.DataFrame, car_data: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp,
+    points: int = GHOST_POINTS,
+) -> pd.DataFrame:
+    """One lap resampled by distance: `points` rows of fraction, t, x, y, speed, throttle, brake, n_gear.
+
+    fraction runs from 0 to 1 along the lap distance, so two laps can be
+    compared at the same place on track rather than at the same moment.
+    Car data has its own timestamps and is attached to each position sample
+    with merge_asof (nearest sample in time).
+
+    t, the elapsed time at each fraction, is not read from the position
+    timestamps: those jitter by ~0.1 s, far more than the gaps of interest.
+    Instead the time for each small step is its length divided by the measured
+    speed (time = distance / speed), summed up and scaled so the lap ends
+    exactly at the official lap time.
+    """
+    path = clip_to_window(location, start, end)
+    telemetry = car_data.assign(t=seconds_since(car_data["date"], start))[["t", *CHANNELS]]
+    path = pd.merge_asof(path, telemetry.sort_values("t"), on="t", direction="nearest")
+    own = lap_fraction(path["x"].to_numpy(), path["y"].to_numpy())
+
+    fraction = np.linspace(0, 1, points)
+    lap = {column: np.interp(fraction, own, path[column]) for column in ["x", "y", *CHANNELS]}
+    speed = np.maximum(lap["speed"], MIN_SPEED)
+    step_time = np.diff(fraction) / ((speed[1:] + speed[:-1]) / 2)
+    elapsed = np.concatenate([[0.0], np.cumsum(step_time)])
+    seconds = (end - start) / pd.Timedelta(seconds=1)
+    return pd.DataFrame({"fraction": fraction, "t": elapsed / elapsed[-1] * seconds, **lap})
+
+
+def lap_delta(first: pd.DataFrame, second: pd.DataFrame) -> np.ndarray:
+    """Running gap along the lap: first's elapsed time minus second's at the same lap fraction.
+
+    Negative means `first` is ahead at that point; the last value is the lap-time gap.
+    """
+    return first["t"].to_numpy() - second["t"].to_numpy()
+
+
+def mini_sectors(first: pd.DataFrame, second: pd.DataFrame, count: int = MINI_SECTORS,
+                 even: float = EVEN_SECONDS) -> pd.DataFrame:
+    """Time of both laps in `count` equal-distance segments and who was faster in each.
+
+    Columns: sector, start, end (lap fractions), first, second (seconds), delta
+    (first − second) and faster ("first", "second" or "even" when |delta| < even).
+    """
+    edges = np.linspace(0, 1, count + 1)
+    times = {
+        name: np.diff(np.interp(edges, lap["fraction"], lap["t"]))
+        for name, lap in [("first", first), ("second", second)]
+    }
+    delta = times["first"] - times["second"]
+    faster = np.select([np.abs(delta) < even, delta < 0], ["even", "first"], default="second")
+    return pd.DataFrame({
+        "sector": np.arange(1, count + 1), "start": edges[:-1], "end": edges[1:],
+        "first": times["first"], "second": times["second"], "delta": delta, "faster": faster,
+    })
+
+
+def ghost_payload(first: pd.DataFrame, second: pd.DataFrame, sectors: pd.DataFrame, cars: list[dict]) -> dict:
+    """Compact data for the ghost-lap animation: both laps in one box, mini-sector winners, running delta.
+
+    cars holds one dict per driver with at least "a" (acronym) and "c" (colour); the path is added here.
+    """
+    fit = fit_to_box(first["x"], first["y"])
+    payload_cars = []
+    for car, lap in zip(cars, [first, second]):
+        x, y = to_box(lap["x"], lap["y"], fit)
+        payload_cars.append(car | {
+            "seconds": round(float(lap["t"].iloc[-1]), 3), "t": lap["t"].round(3).tolist(),
+            "x": np.round(x).astype(int).tolist(), "y": np.round(y).astype(int).tolist(),
+        })
+    winner = sectors["faster"].map({"first": 0, "second": 1, "even": -1})
+    return {
+        "width": fit["width"], "height": fit["height"], "cars": payload_cars,
+        "sectors": np.column_stack([sectors["start"].round(4), sectors["end"].round(4), winner,
+                                    sectors["delta"].round(3)]).tolist(),
+        "delta": np.round(lap_delta(first, second), 3).tolist(),
+    }

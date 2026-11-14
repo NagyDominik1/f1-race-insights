@@ -107,12 +107,19 @@ position samples and divided by the total, giving a lap fraction from 0 to 1. Sp
 from a second feed with its own timestamps and are attached to the nearest earlier position sample
 (`pandas.merge_asof`).
 
+**Elapsed time is rebuilt from speed.** The position timestamps jitter by about a tenth of a second, more
+than the gaps being measured. So the time for each small step of the lap is its length divided by the measured
+speed (time = distance / speed); the steps are summed and scaled so the lap ends exactly at the official lap
+time.
+
 The lap is cut into **25 mini-sectors of equal distance**. In each, the driver who needed less time is
 faster, and the track is coloured accordingly. The running delta at any point is the difference in elapsed
 time at the same lap fraction.
 
-*Limit:* the start time of a lap and the nearest position sample can be 0.1 to 0.3 seconds apart, so deltas
-inside the lap are accurate to roughly a tenth. The final gap always equals the official lap-time gap.
+*Limit:* speed is sampled about four times per second and matched to a position that can be 10 to 15 metres
+off, which matters most in braking zones. Gaps inside the lap are therefore good to roughly five hundredths
+to a tenth of a second, and mini-sector gaps under 0.03 s are shown as too close to call. The final gap
+always equals the official lap-time gap.
 """),
 ]
 

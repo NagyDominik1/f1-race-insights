@@ -1,5 +1,7 @@
 """Pure telemetry transforms: resampling, track outline, replay and ghost-lap data."""
 
+import base64
+
 import numpy as np
 import pandas as pd
 
@@ -36,3 +38,268 @@ def resample_location(location: pd.DataFrame, grid: pd.DatetimeIndex) -> pd.Data
         "x": np.interp(g[inside], t, location["x"]).round().astype("float32"),
         "y": np.interp(g[inside], t, location["y"]).round().astype("float32"),
     })
+
+
+BOX = 20000  # width of the normalised coordinate box; fits int16 with headroom
+
+
+def clip_to_window(df: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
+    """Rows between start and end with a "t" column (seconds since start).
+
+    Every numeric column is linearly interpolated at exactly start and end, so
+    a lap begins at t = 0 and finishes at t = lap time whatever the sampling.
+    Needs at least one sample on each side of the window (fetch with padding).
+    """
+    t = seconds_since(df["date"], start)
+    duration = (end - start) / pd.Timedelta(seconds=1)
+    inside = (t > 0) & (t < duration)
+    new_t = np.concatenate([[0.0], t[inside], [duration]])
+    columns = [c for c in df.columns if c != "date"]
+    clipped = {c: np.interp(new_t, t, df[c].to_numpy(dtype="float64")) for c in columns}
+    return pd.DataFrame({"t": new_t, **clipped})
+
+
+def lap_fraction(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Share of the lap distance covered at each sample: 0 at the first, 1 at the last."""
+    steps = np.hypot(np.diff(x, prepend=x[0]), np.diff(y, prepend=y[0]))
+    distance = np.cumsum(steps)
+    return distance / distance[-1]
+
+
+def track_outline(lap_location: pd.DataFrame, points: int = 400) -> pd.DataFrame:
+    """Track centre line from one lap: `points` rows (fraction, x, y) evenly spaced by distance."""
+    x = lap_location["x"].to_numpy(dtype="float64")
+    y = lap_location["y"].to_numpy(dtype="float64")
+    own = lap_fraction(x, y)
+    fraction = np.linspace(0, 1, points)
+    return pd.DataFrame({
+        "fraction": fraction, "x": np.interp(fraction, own, x), "y": np.interp(fraction, own, y),
+    })
+
+
+def _oriented(x: np.ndarray, y: np.ndarray, rotate: bool) -> tuple[np.ndarray, np.ndarray]:
+    """Screen orientation: optional quarter turn, then y pointing down."""
+    x, y = np.asarray(x, dtype="float64"), np.asarray(y, dtype="float64")
+    return (y, x) if rotate else (x, -y)
+
+
+def fit_to_box(x: np.ndarray, y: np.ndarray, box: int = BOX) -> dict:
+    """Transform that fits a track into a box `box` wide, keeping the aspect ratio.
+
+    A track that is taller than wide is turned by 90 degrees so it uses a
+    landscape canvas better. Returns the parameters used by to_box.
+    """
+    rotate = bool(np.ptp(y) > np.ptp(x))
+    u, v = _oriented(x, y, rotate)
+    scale = box / np.ptp(u)
+    return {
+        "rotate": rotate, "u_min": float(u.min()), "v_min": float(v.min()), "scale": float(scale),
+        "width": box, "height": int(round(np.ptp(v) * scale)),
+    }
+
+
+def to_box(x: np.ndarray, y: np.ndarray, fit: dict) -> tuple[np.ndarray, np.ndarray]:
+    """Apply a fit_to_box transform; NaN stays NaN."""
+    u, v = _oriented(x, y, fit["rotate"])
+    return (u - fit["u_min"]) * fit["scale"], (v - fit["v_min"]) * fit["scale"]
+
+
+# --- race replay -----------------------------------------------------------
+
+MISSING = -32768  # int16 sentinel for "no position at this sample"
+
+
+def encode_int16(values: np.ndarray) -> str:
+    """Base64 of little-endian int16 values: a compact payload a browser reads as Int16Array."""
+    return base64.b64encode(np.asarray(values).astype("<i2").tobytes()).decode("ascii")
+
+
+def replay_tracks(race_location: pd.DataFrame, fit: dict, hz: float, smooth: int = 3) -> tuple[pd.DatetimeIndex, pd.DataFrame, pd.DataFrame]:
+    """Box coordinates of every driver on one gap-free time grid: (grid, x, y), columns = driver_number.
+
+    OpenF1 location timestamps jitter by about 0.1 s, which makes cars pulse
+    along the track; a centred rolling mean over `smooth` samples evens that
+    out (at 2 Hz it moves a car less than ~2 m sideways in a corner).
+    """
+    step = pd.Timedelta(seconds=1 / hz)
+    grid = pd.date_range(race_location["date"].min(), race_location["date"].max(), freq=step)
+    wide = race_location.pivot(index="date", columns="driver_number", values=["x", "y"]).reindex(grid)
+    # samples without a full window (start, end, next to a gap) keep their raw value
+    wide = wide.rolling(smooth, center=True).mean().fillna(wide)
+    x, y = to_box(wide["x"].to_numpy(), wide["y"].to_numpy(), fit)
+    columns = wide["x"].columns
+    return grid, pd.DataFrame(x, index=grid, columns=columns), pd.DataFrame(y, index=grid, columns=columns)
+
+
+def _interleave(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """x0, y0, x1, y1, ... as int16 with MISSING where a sample is NaN."""
+    pairs = np.column_stack([x, y])
+    return np.where(np.isnan(pairs), MISSING, np.round(pairs)).astype("int16").ravel()
+
+
+def _per_driver(df: pd.DataFrame, columns: list[str]) -> dict:
+    """{driver_number: [[row values], ...]} for a few columns, as plain Python lists."""
+    return {int(number): group[columns].to_numpy().tolist() for number, group in df.groupby("driver_number")}
+
+
+def replay_payload(
+    race_location: pd.DataFrame, outline_lap: pd.DataFrame, laps: pd.DataFrame,
+    positions: pd.DataFrame, stints: pd.DataFrame, pit_stops: pd.DataFrame,
+    periods: pd.DataFrame, drivers: pd.DataFrame, classification: pd.DataFrame, hz: float,
+) -> dict:
+    """Everything the replay component needs, as one compact JSON-serialisable dict.
+
+    Times are seconds since the first sample. Car paths are base64 int16 arrays
+    on a shared grid (sample i is at i / hz seconds); events are short lists.
+    """
+    outline = track_outline(outline_lap, points=500)
+    fit = fit_to_box(outline["x"], outline["y"])
+    grid, x, y = replay_tracks(race_location, fit, hz)
+    origin = grid[0]
+
+    def seconds(dates: pd.Series) -> pd.Series:
+        return pd.Series(seconds_since(dates, origin), index=dates.index).round(1)
+
+    lap_starts = laps["date_start"].fillna(laps.groupby("lap_number")["date_start"].transform("min"))
+    laps = laps.assign(t=seconds(lap_starts), end=seconds(lap_starts) + laps["LapTimeSeconds"].fillna(0))
+    laps = laps.dropna(subset=["t"]).sort_values(["driver_number", "lap_number"])
+    lap_times = {int(number): group["t"].tolist() for number, group in laps.groupby("driver_number")}
+    last_lap_end = laps.groupby("driver_number")["end"].max()
+
+    feed = positions.assign(t=seconds(positions["date"]).clip(lower=0), position=positions["position"].astype(int))
+    stint_rows = stints.dropna(subset=["lap_start", "lap_end"]).assign(
+        age=lambda d: d["tyre_age_at_start"].fillna(0))[["driver_number", "lap_start", "lap_end", "compound", "age"]]
+    stint_rows = stint_rows.astype({"lap_start": int, "lap_end": int, "age": int, "compound": str})
+    # OpenF1 stamps a pit stop when the car leaves the pit lane; pit_duration reaches back from there
+    pits = pit_stops.dropna(subset=["pit_duration"]).assign(end=lambda d: seconds(d["date"]))
+    pits = pits.assign(start=(pits["end"] - pits["pit_duration"]).round(1))
+
+    position_feed, stint_lists, pit_lists = (
+        _per_driver(feed, ["t", "position"]), _per_driver(stint_rows, ["lap_start", "lap_end", "compound", "age"]),
+        _per_driver(pits, ["start", "end"]),
+    )
+    info = drivers.set_index("driver_number")
+    retired = classification.loc[~classification["classified"], "driver_number"].tolist()
+    cars = [
+        {
+            "n": int(number), "a": info.loc[number, "acronym"], "c": info.loc[number, "team_colour"],
+            "team": info["team_name"].fillna("").loc[number],
+            "xy": encode_int16(_interleave(x[number].to_numpy(), y[number].to_numpy())),
+            "laps": lap_times.get(int(number), []), "pos": position_feed.get(int(number), []),
+            "stints": stint_lists.get(int(number), []), "pits": pit_lists.get(int(number), []),
+            "out": float(last_lap_end[number]) if number in retired and number in last_lap_end.index else None,
+        }
+        for number in x.columns if number in info.index
+    ]
+    track_x, track_y = to_box(outline["x"], outline["y"], fit)
+    leader_laps = laps.groupby("lap_number")["t"].min()
+    neutral = periods.assign(t0=seconds(periods["start"]), t1=seconds(periods["end"])) if not periods.empty else periods
+    return {
+        "hz": hz, "samples": len(grid), "duration": round((len(grid) - 1) / hz, 1),
+        "width": fit["width"], "height": fit["height"],
+        "track": {"x": np.round(track_x).astype(int).tolist(), "y": np.round(track_y).astype(int).tolist()},
+        "lapStarts": leader_laps.tolist(), "totalLaps": int(laps["lap_number"].max()),
+        "finish": float(laps.loc[laps["lap_number"] == laps["lap_number"].max(), "end"].min()),
+        "periods": neutral[["t0", "t1", "kind"]].to_numpy().tolist() if not periods.empty else [],
+        "cars": cars,
+    }
+
+
+# --- ghost lap -------------------------------------------------------------
+
+GHOST_POINTS = 501
+MINI_SECTORS = 25
+EVEN_SECONDS = 0.03  # mini-sector gaps below this are within the timing noise
+MIN_SPEED = 10.0  # km/h floor, so a stationary car cannot divide by zero
+CHANNELS = ["speed", "throttle", "brake", "n_gear"]
+
+
+def ghost_lap(
+    location: pd.DataFrame, car_data: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp,
+    points: int = GHOST_POINTS,
+) -> pd.DataFrame:
+    """One lap resampled by distance: `points` rows of fraction, t, x, y, speed, throttle, brake, n_gear.
+
+    fraction runs from 0 to 1 along the lap distance, so two laps can be
+    compared at the same place on track rather than at the same moment.
+    Car data has its own timestamps and is attached to each position sample
+    with merge_asof (nearest sample in time).
+
+    t, the elapsed time at each fraction, is not read from the position
+    timestamps: those jitter by ~0.1 s, far more than the gaps of interest.
+    Instead the time for each small step is its length divided by the measured
+    speed (time = distance / speed), summed up and scaled so the lap ends
+    exactly at the official lap time.
+    """
+    path = clip_to_window(location, start, end)
+    telemetry = car_data.assign(t=seconds_since(car_data["date"], start))[["t", *CHANNELS]]
+    path = pd.merge_asof(path, telemetry.sort_values("t"), on="t", direction="nearest")
+    own = lap_fraction(path["x"].to_numpy(), path["y"].to_numpy())
+
+    fraction = np.linspace(0, 1, points)
+    lap = {column: np.interp(fraction, own, path[column]) for column in ["x", "y", *CHANNELS]}
+    speed = np.maximum(lap["speed"], MIN_SPEED)
+    step_time = np.diff(fraction) / ((speed[1:] + speed[:-1]) / 2)
+    elapsed = np.concatenate([[0.0], np.cumsum(step_time)])
+    seconds = (end - start) / pd.Timedelta(seconds=1)
+    return pd.DataFrame({"fraction": fraction, "t": elapsed / elapsed[-1] * seconds, **lap})
+
+
+def lap_delta(first: pd.DataFrame, second: pd.DataFrame) -> np.ndarray:
+    """Running gap along the lap: first's elapsed time minus second's at the same lap fraction.
+
+    Negative means `first` is ahead at that point; the last value is the lap-time gap.
+    """
+    return first["t"].to_numpy() - second["t"].to_numpy()
+
+
+def mini_sectors(first: pd.DataFrame, second: pd.DataFrame, count: int = MINI_SECTORS,
+                 even: float = EVEN_SECONDS) -> pd.DataFrame:
+    """Time of both laps in `count` equal-distance segments and who was faster in each.
+
+    Columns: sector, start, end (lap fractions), first, second (seconds), delta
+    (first − second), faster ("first", "second" or "even" when |delta| < even)
+    and rank (1 = the mini-sector with the biggest time difference).
+    """
+    edges = np.linspace(0, 1, count + 1)
+    times = {
+        name: np.diff(np.interp(edges, lap["fraction"], lap["t"]))
+        for name, lap in [("first", first), ("second", second)]
+    }
+    delta = times["first"] - times["second"]
+    faster = np.select([np.abs(delta) < even, delta < 0], ["even", "first"], default="second")
+    sectors = pd.DataFrame({
+        "sector": np.arange(1, count + 1), "start": edges[:-1], "end": edges[1:],
+        "first": times["first"], "second": times["second"], "delta": delta, "faster": faster,
+    })
+    return sectors.assign(rank=sectors["delta"].abs().rank(method="first", ascending=False).astype(int))
+
+
+def gap_metres(delta_seconds: np.ndarray, speed_kmh: np.ndarray) -> np.ndarray:
+    """A time gap as a distance on track: |gap| × the speed of the car behind, in metres."""
+    return np.abs(delta_seconds) * np.asarray(speed_kmh, dtype="float64") / 3.6
+
+
+def ghost_payload(first: pd.DataFrame, second: pd.DataFrame, sectors: pd.DataFrame, cars: list[dict]) -> dict:
+    """Compact data for the ghost-lap animation: both laps in one box, mini-sector winners, running delta.
+
+    cars holds one dict per driver with at least "a" (acronym) and "c" (colour); the path (t, x, y)
+    and the speed "v" in km/h are added here. Each sector row is [start, end, winner, delta, rank]
+    with winner 0 (first), 1 (second) or -1 (even).
+    """
+    fit = fit_to_box(first["x"], first["y"])
+    payload_cars = []
+    for car, lap in zip(cars, [first, second]):
+        x, y = to_box(lap["x"], lap["y"], fit)
+        payload_cars.append(car | {
+            "seconds": round(float(lap["t"].iloc[-1]), 3), "t": lap["t"].round(3).tolist(),
+            "x": np.round(x).astype(int).tolist(), "y": np.round(y).astype(int).tolist(),
+            "v": np.round(lap["speed"]).astype(int).tolist(),
+        })
+    winner = sectors["faster"].map({"first": 0, "second": 1, "even": -1})
+    return {
+        "width": fit["width"], "height": fit["height"], "cars": payload_cars,
+        "sectors": np.column_stack([sectors["start"].round(4), sectors["end"].round(4), winner,
+                                    sectors["delta"].round(3), sectors["rank"]]).tolist(),
+        "delta": np.round(lap_delta(first, second), 3).tolist(),
+    }

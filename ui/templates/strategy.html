@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+/*__TOKENS__*/
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font); color: var(--ink); background: transparent; }
+.wrap { padding: 4px 22px 0 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--secondary); margin: 0 0 12px 78px; }
+.legend i { display: inline-block; width: 22px; height: 10px; border-radius: 5px; margin-right: 6px; vertical-align: -1px; }
+.legend .pit { width: 2px; height: 14px; background: var(--ink); border-radius: 1px; vertical-align: -3px; }
+.line { display: grid; grid-template-columns: 26px 44px 1fr; align-items: center; gap: 4px; height: 25px; font-size: 12px; }
+.pos { color: var(--secondary); text-align: right; font-variant-numeric: tabular-nums; }
+.name { font-weight: 600; padding-left: 6px; border-left: 4px solid var(--c); }
+.track { position: relative; height: 15px; }
+.stint { position: absolute; top: 0; height: 100%; border-radius: 7px; transform-origin: left center;
+  animation: grow .7s var(--ease) both; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600; color: rgba(29,29,31,.8); overflow: hidden; }
+.stint.outlined { box-shadow: inset 0 0 0 1.5px #9A9AA2; }
+.stint.dark { color: #fff; }
+.pitmark { position: absolute; top: -4px; width: 2px; height: 23px; background: var(--ink); border-radius: 1px;
+  animation: fade .4s ease both; }
+.axis { position: relative; height: 22px; margin-left: 78px; border-top: 1px solid var(--hairline); margin-top: 6px; }
+.axis span { position: absolute; top: 5px; font-size: 11px; color: var(--secondary); transform: translateX(-50%); }
+.line:hover .track { filter: brightness(1.12); }
+#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--on-ink); font-size: 12px; padding: 6px 9px;
+  border-radius: 8px; opacity: 0; transition: opacity .15s; white-space: nowrap; z-index: 9; }
+@keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .stint, .pitmark { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="legend" id="legend"></div>
+  <div id="rows"></div>
+  <div class="axis" id="axis"></div>
+</div>
+<div id="tip"></div>
+<script>
+const DATA = __DATA__;
+const pct = lap => (lap / DATA.laps * 100) + '%';
+const tip = document.getElementById('tip');
+const show = (event, text) => { tip.textContent = text; tip.style.opacity = 1;
+  tip.style.left = Math.min(event.clientX + 12, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = (event.clientY - 34) + 'px'; };
+const hide = () => { tip.style.opacity = 0; };
+
+document.getElementById('legend').innerHTML = DATA.compounds.map(c =>
+  `<span><i style="background:${c.colour};${c.outlined ? 'box-shadow:inset 0 0 0 1.5px #9A9AA2' : ''}"></i>${c.name}</span>`
+).join('') + '<span><i class="pit"></i>Pit stop</span>';
+
+const rows = document.getElementById('rows');
+DATA.drivers.forEach((driver, r) => {
+  const line = document.createElement('div');
+  line.className = 'line';
+  line.style.setProperty('--c', driver.colour);
+  line.innerHTML = `<span class="pos">${driver.position}</span><span class="name">${driver.acronym}</span><div class="track"></div>`;
+  const track = line.querySelector('.track');
+  driver.stints.forEach((s, k) => {
+    const el = document.createElement('div');
+    el.className = 'stint' + (s.outlined ? ' outlined' : '') + (s.dark ? ' dark' : '');
+    el.style.cssText = `left:${pct(s.start - 1)};width:calc(${pct(s.end - s.start + 1)} - 2px);background:${s.colour};` +
+      `animation-delay:${(r * 28 + k * 220)}ms`;
+    const laps = s.end - s.start + 1;
+    if (laps / DATA.laps > 0.07) el.textContent = s.compound[0] + ' ' + laps;
+    const text = `${driver.acronym}: ${s.compound.toLowerCase()}, laps ${s.start} to ${s.end} (${laps} laps` +
+      (s.age ? `, set ${s.age} laps old at the start)` : ')');
+    el.addEventListener('mousemove', e => show(e, text)); el.addEventListener('mouseleave', hide);
+    track.appendChild(el);
+  });
+  driver.pits.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'pitmark';
+    el.style.cssText = `left:calc(${pct(p.lap)} - 2px);animation-delay:${r * 28 + 700}ms`;
+    const text = `${driver.acronym} pitted on lap ${p.lap}` + (p.seconds ? `: ${p.seconds.toFixed(1)} s in the pit lane` : '');
+    el.addEventListener('mousemove', e => show(e, text)); el.addEventListener('mouseleave', hide);
+    track.appendChild(el);
+  });
+  rows.appendChild(line);
+});
+const axis = document.getElementById('axis');
+const step = DATA.laps > 40 ? 10 : 5;
+for (let lap = 0; lap <= DATA.laps; lap += step) {
+  const tick = document.createElement('span'); tick.style.left = pct(lap); tick.textContent = lap === 0 ? 'Lap' : lap; axis.appendChild(tick);
+}
+</script>
+</body>
+</html>

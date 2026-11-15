@@ -45,7 +45,7 @@ too much for Streamlit Community Cloud (about 1 GB of RAM) and for a browser pay
   because the two feeds are not sampled at the same instants.
 - **Bulky telemetry is not written to the JSON disk cache.** The downsampled replay
   table of a finished race is cached once as parquet in `cache/derived/`.
-- **First load of a non-demo race replay takes 1-3 minutes** (20 sequential requests
+- **First load of a non-demo race replay takes about half a minute** (20 sequential requests
   of 3-5 MB each); afterwards it is served from the parquet cache.
 - **Demo weekend size:** 1.85 MB in `data/demo/` (target was < 20 MB).
 
@@ -61,6 +61,15 @@ too much for Streamlit Community Cloud (about 1 GB of RAM) and for a browser pay
 - Lap `date_start` and the end of the previous lap differ by ~30 ms, and the nearest
   location sample can be 0.1-0.3 s away. Ghost-lap deltas are therefore accurate to
   roughly ±0.1 s inside the lap, while the final gap equals the official lap-time gap.
+- **Location timestamps jitter by about 0.1 s.** Speed computed from consecutive position
+  samples scatters by ±26% around the speed reported in `car_data` (same lap, same car),
+  although the positions themselves lie on the track. The replay therefore applies a
+  centred 3-sample rolling mean to the 2 Hz paths (cars would otherwise pulse along the
+  track). The ghost lap does not use position timestamps for timing at all: elapsed time
+  is rebuilt as distance / measured speed and scaled to the official lap time, and
+  mini-sector gaps below 0.03 s are treated as even.
+- The `date` of a pit stop is the moment the car leaves the pit lane; `pit_duration`
+  reaches back from there (checked against the car's speed around NOR's first stop).
 - Safety car periods are not a field: they are parsed from `race_control` messages
   ("SAFETY CAR DEPLOYED", "VIRTUAL SAFETY CAR DEPLOYED", flag `RED`) and end at the next
   "TRACK CLEAR". The 2024 Hungarian GP had none, so the parser is tested with messages

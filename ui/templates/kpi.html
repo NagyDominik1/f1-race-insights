@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+/*__TOKENS__*/
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font); color: var(--ink); background: transparent; }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; padding: 1px 1px 2px; }
+.tile { background: var(--white); box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 0 0 1px var(--hairline); border-radius: 22px; padding: 18px 20px 16px; min-height: 132px;
+  display: flex; flex-direction: column; justify-content: space-between; }
+.tile.white { background: var(--tile); }
+.label { font-size: 13px; font-weight: 500; color: var(--secondary); }
+.value { font-size: clamp(28px, 3.4vw, 44px); font-weight: 700; letter-spacing: -0.035em; line-height: 1.05;
+  font-variant-numeric: tabular-nums; margin-top: 10px; white-space: nowrap; }
+.value.accent { color: var(--red); }
+.value.small { font-size: clamp(19px, 2.1vw, 27px); letter-spacing: -0.02em; margin-top: 18px; }
+.note { font-size: 13px; color: var(--secondary); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="row" id="row"></div>
+<script>
+const DATA = __DATA__;
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const lapTime = s => { const m = Math.floor(s / 60); return m + ':' + (s - m * 60).toFixed(3).padStart(6, '0'); };
+const format = (tile, v) => tile.format === 'laptime' ? lapTime(v)
+  : (tile.prefix || '') + v.toFixed(tile.decimals || 0) + (tile.suffix || '');
+const row = document.getElementById('row');
+DATA.tiles.forEach(tile => {
+  const el = document.createElement('div');
+  el.className = 'tile' + (tile.white ? ' white' : '');
+  el.innerHTML = `<div class="label"></div><div><div class="value${tile.accent ? ' accent' : ''}${tile.small ? ' small' : ''}"></div><div class="note"></div></div>`;
+  el.querySelector('.label').textContent = tile.label;
+  el.querySelector('.note').textContent = tile.note || '';
+  const value = el.querySelector('.value');
+  row.appendChild(el);
+  if (tile.number === undefined || tile.number === null) { value.textContent = tile.text; return; }
+  // count up: the number is the message, the motion only draws the eye to it once
+  const from = tile.format === 'laptime' ? tile.number * 1.08 : 0, to = tile.number, t0 = performance.now(), ms = 900;
+  if (reduced) { value.textContent = format(tile, to); return; }
+  (function step(now) {
+    const p = Math.min(1, (now - t0) / ms), eased = 1 - Math.pow(1 - p, 3);
+    value.textContent = format(tile, from + (to - from) * eased);
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+/* Landing page: two full-height bento tiles. The whole tile is a real Streamlit button
+   (transparent, stretched over the tile), so navigation works everywhere Streamlit does. */
+[data-testid="stHeader"] { display: none; }
+.stMainBlockContainer { max-width: 100% !important; padding: 0 14px !important; }
+.st-key-landing { gap: 0 !important; }
+.lt-brand { display: flex; align-items: center; justify-content: space-between; gap: 1rem; height: 58px; padding: 18px 8px 0; }
+.lt-brand i { display: block; height: 27px; }
+.lt-brand .ri-logo { height: 27px; }
+.lt-brand span { color: var(--secondary); font-size: .92rem; text-align: right; }
+.lt-foot { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; height: 44px; padding: 12px 8px 0; color: var(--secondary); font-size: .8rem; }
+.lt-foot a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--hairline); }
+
+.st-key-landing [data-testid="stHorizontalBlock"] { gap: 12px !important; }
+.st-key-landing [data-testid="stColumn"] { flex: 1 1 0% !important; width: auto !important; min-width: 0 !important;
+  transition: flex-grow .6s var(--ease); }
+.st-key-landing [data-testid="stColumn"]:has(button:hover),
+.st-key-landing [data-testid="stColumn"]:has(button:focus-visible) { flex-grow: 1.5 !important; }
+.st-key-landing [data-testid="stColumn"].is-going { flex-grow: 60 !important; }
+.st-key-landing [data-testid="stHorizontalBlock"]:has(.is-going) { gap: 0 !important; }
+
+.st-key-lt-analytics, .st-key-lt-races { position: relative; flex: 0 0 auto !important; height: calc(100vh - 58px - 44px - 14px) !important; min-height: 420px;
+  border-radius: 28px; overflow: hidden; transition: filter .6s var(--ease), border-radius .6s var(--ease); }
+.st-key-lt-analytics { background: var(--midnight); }
+.st-key-lt-races { background: var(--sky); }
+.st-key-landing [data-testid="stHorizontalBlock"]:has(button:hover) [data-testid="stColumn"]:not(:has(button:hover)) [class*="st-key-lt-"] {
+  filter: saturate(.55) brightness(.94); }
+
+[class*="st-key-lt-"] > [data-testid="stElementContainer"]:first-child { position: static; }
+.lt-tile { position: absolute; inset: 0; }
+.lt-tile canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.lt-copy { position: absolute; left: clamp(22px, 3.2vw, 48px); bottom: clamp(24px, 3.4vw, 48px); right: 22px; }
+.lt-copy h2 { font-size: clamp(3rem, 7.2vw, 7rem); font-weight: 700; letter-spacing: -0.045em; line-height: .95; margin: 0 0 .9rem; padding: 0; white-space: nowrap; }
+.lt-copy p { font-size: clamp(1rem, 1.25vw, 1.2rem); line-height: 1.4; margin: 0 0 1.4rem; max-width: 30ch; }
+.lt-cta { display: inline-block; padding: .68rem 1.25rem; border-radius: 999px; font-weight: 600; font-size: .98rem;
+  transition: background .3s var(--ease), color .3s var(--ease), transform .3s var(--ease); }
+.st-key-lt-analytics .lt-copy :is(h2, p) { color: #fff; }
+.st-key-lt-analytics .lt-copy p { color: rgba(255,255,255,.72); }
+.st-key-lt-analytics .lt-cta { background: var(--canvas); color: var(--ink); }
+.st-key-lt-races .lt-copy h2 { color: var(--ink); }
+.st-key-lt-races .lt-copy p { color: #3F4A5A; }
+.st-key-lt-races .lt-cta { background: var(--ink); color: #fff; }
+[class*="st-key-lt-"]:has(button:hover) .lt-cta, [class*="st-key-lt-"]:has(button:focus-visible) .lt-cta {
+  background: var(--red); color: #fff; transform: translateY(-2px); }
+
+/* the real button: invisible, covers the tile */
+.st-key-go_analytics, .st-key-go_races { position: absolute !important; inset: 0; width: auto !important; z-index: 5; }
+.st-key-go_analytics .stButton, .st-key-go_races .stButton,
+.st-key-go_analytics button, .st-key-go_races button { width: 100%; height: 100%; }
+.st-key-go_analytics button, .st-key-go_races button { background: transparent !important; border: 0 !important;
+  color: transparent !important; border-radius: 28px; cursor: pointer; transform: none !important; }
+.st-key-go_analytics button:focus-visible, .st-key-go_races button:focus-visible { outline: 3px solid var(--red); outline-offset: -6px; }
+.st-key-go_analytics button *, .st-key-go_races button * { color: transparent !important; }
+
+@media (max-width: 640px) {
+  .st-key-landing [data-testid="stHorizontalBlock"] { flex-direction: column; }
+  .st-key-landing [data-testid="stColumn"] { flex: 0 0 auto !important; width: 100% !important; }
+  .st-key-lt-analytics, .st-key-lt-races { height: calc(50vh - 60px) !important; min-height: 300px; }
+  .lt-brand { height: auto; padding-bottom: 10px; flex-direction: column; align-items: flex-start; gap: .3rem; }
+  .lt-brand span { text-align: left; }
+  .lt-foot { height: auto; padding-bottom: 14px; }
+}

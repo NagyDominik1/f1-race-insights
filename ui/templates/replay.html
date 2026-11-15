@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+/*__TOKENS__*/
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font-family: var(--font); color: var(--ink); background: transparent; --map: var(--white); --card: var(--white); --line: var(--hairline); }
+body.full { background: var(--canvas); }
+.app { display: flex; flex-direction: column; gap: 12px; height: 100%; padding: 1px; }
+body.full .app { padding: 12px; }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 236px; gap: 12px; flex: 1; min-height: 0; }
+.map { position: relative; background: var(--map); border-radius: 24px; overflow: hidden; box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 0 0 1px var(--line); }
+#view { position: absolute; inset: 0; width: 100%; height: 100%; cursor: default; touch-action: none; }
+.hud { position: absolute; left: 22px; top: 18px; pointer-events: none; }
+.hud .lap { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.hud .lap small { font-size: 15px; font-weight: 500; opacity: .6; margin-left: 4px; }
+.hud .clock { font-size: 13px; opacity: .6; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.banner { position: absolute; top: 20px; left: 50%; transform: translate(-50%, -80px); padding: 8px 18px; border-radius: 999px;
+  font-size: 14px; font-weight: 700; transition: transform .45s var(--ease); white-space: nowrap; }
+.banner.on { transform: translate(-50%, 0); }
+.banner.SC, .banner.VSC { background: #F7C600; color: #1D1D1F; }
+.banner.RED { background: var(--red); color: #fff; }
+.banner.FLAG { background: var(--ink); color: var(--on-ink); }
+.hint { position: absolute; left: 22px; bottom: 16px; font-size: 12px; opacity: .55; pointer-events: none; }
+#tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--on-ink); font-size: 12px; line-height: 1.45;
+  padding: 8px 11px; border-radius: 10px; opacity: 0; transition: opacity .15s; white-space: nowrap; z-index: 5; }
+#tip b { font-size: 13px; }
+.tower { background: var(--card); border-radius: 24px; box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 0 0 1px var(--line); padding: 14px 10px 10px; overflow: hidden;
+  display: flex; flex-direction: column; }
+.tower h4 { margin: 0 8px 8px; font-size: 13px; font-weight: 600; opacity: .6; }
+#rows { position: relative; flex: 1; }
+.row { position: absolute; left: 0; right: 0; height: 26px; display: grid; grid-template-columns: 24px 5px 42px 16px 1fr; gap: 6px;
+  align-items: center; padding: 0 8px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 0; background: none; color: inherit;
+  font-family: inherit; text-align: left; transition: transform .5s var(--ease), background .2s; }
+.row:hover, .row.follow { background: rgba(120,120,128,.14); }
+.row.sel .name { font-weight: 700; }
+.row.out { opacity: .4; }
+.row .p { text-align: right; font-variant-numeric: tabular-nums; opacity: .6; }
+.row .bar { width: 5px; height: 16px; border-radius: 3px; }
+.row .name { font-weight: 500; }
+.row .tyre { width: 12px; height: 12px; border-radius: 50%; }
+.row .tyre.outlined { box-shadow: none; }
+.row .meta { font-size: 11px; opacity: .65; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.row .meta b { background: var(--ink); color: var(--on-ink); padding: 1px 6px; border-radius: 6px; font-weight: 600; opacity: 1; }
+.controls { background: var(--card); border-radius: 20px; box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 0 0 1px var(--line); padding: 10px 14px; display: flex;
+  align-items: center; gap: 12px; flex-wrap: wrap; }
+button { font-family: inherit; }
+.play { width: 42px; height: 42px; border-radius: 50%; border: 0; background: var(--red); color: #fff; cursor: pointer; flex: none;
+  display: grid; place-items: center; transition: transform .2s var(--ease); }
+.play:hover { transform: scale(1.06); }
+.play svg { width: 16px; height: 16px; fill: currentColor; }
+.seg { display: inline-flex; background: var(--soft); border-radius: 999px; padding: 3px; }
+.seg button { border: 0; background: none; padding: 6px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 500; color: inherit; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: rgba(255,255,255,.18); font-weight: 600; }
+.scrub { flex: 1 1 260px; min-width: 200px; position: relative; height: 42px; }
+#ticks { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+#time { position: absolute; left: 0; top: 0; width: 100%; margin: 0; height: 22px; accent-color: var(--red); cursor: pointer; }
+.label { font-size: 12px; opacity: .6; }
+:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+@media (max-width: 720px) {
+  .stage { grid-template-columns: 1fr; grid-template-rows: 320px auto; }
+  .tower { max-height: 250px; overflow-y: auto; }
+  #rows { min-height: 530px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="stage">
+    <div class="map" id="map">
+      <canvas id="view" aria-label="Track map with the cars at the current race time"></canvas>
+      <div class="hud"><div class="lap" id="lap"></div><div class="clock" id="clock"></div></div>
+      <div class="banner" id="banner" role="status"></div>
+      <div class="hint" id="hint">Click a car or a name to follow it. Click the track to zoom back out.</div>
+      <div id="tip"></div>
+    </div>
+    <div class="tower"><h4>Running order</h4><div id="rows"></div></div>
+  </div>
+  <div class="controls">
+    <button class="play" id="play" aria-label="Play or pause"></button>
+    <div class="seg" id="speeds" role="group" aria-label="Playback speed"></div>
+    <div class="scrub"><canvas id="ticks"></canvas><input id="time" type="range" min="0" step="0.5" aria-label="Race time"></div>
+    <span class="label">Labels</span>
+    <div class="seg" id="labels" role="group" aria-label="Driver labels"></div>
+    <div class="seg"><button id="full" aria-pressed="false">Full screen</button></div>
+  </div>
+</div>
+<script>
+/*__CAR__*/
+const D = __DATA__;
+const MISSING = -32768, SPEEDS = [1, 5, 10, 30, 60], LABELS = ['All', 'Selected', 'Off'];
+const TYRES = D.tyres, NAMES = {SC: 'Safety car', VSC: 'Virtual safety car', RED: 'Red flag'};
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = id => document.getElementById(id);
+
+// ---- data access (Python did the shaping; here we only look values up and interpolate) ----
+function decode(b64) {
+  const s = atob(b64), bytes = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
+  return new Int16Array(bytes.buffer);
+}
+const cars = D.cars.map(c => Object.assign({}, c, {xy: decode(c.xy), heading: 0, sx: 0, sy: 0, visible: false,
+  selected: D.selected.includes(c.a)}));
+const countUpTo = (list, t, key) => {  // how many entries start at or before t (binary search)
+  let lo = 0, hi = list.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; (key ? list[mid][0] : list[mid]) <= t ? lo = mid + 1 : hi = mid; }
+  return lo;
+};
+function point(car, k) {
+  k = Math.max(0, Math.min(D.samples - 1, k));
+  const x = car.xy[2 * k];
+  return x === MISSING ? null : [x, car.xy[2 * k + 1]];
+}
+// Catmull-Rom spline through the 2 Hz samples: smooth motion at any playback speed
+function locate(car, t) {
+  const f = Math.max(0, Math.min(D.samples - 1.001, t * D.hz)), i = Math.floor(f), u = f - i;
+  const p1 = point(car, i), p2 = point(car, i + 1);
+  if (!p1 || !p2) return p1 || p2;
+  const p0 = point(car, i - 1) || p1, p3 = point(car, i + 2) || p2;
+  const cr = (a, b, c, d) => 0.5 * (2 * b + (c - a) * u + (2 * a - 5 * b + 4 * c - d) * u * u + (3 * b - a - 3 * c + d) * u * u * u);
+  return [cr(p0[0], p1[0], p2[0], p3[0]), cr(p0[1], p1[1], p2[1], p3[1])];
+}
+function status(car, t) {
+  const lap = Math.min(countUpTo(car.laps, t), car.laps.length);
+  const n = countUpTo(car.pos, t, true);
+  const stint = car.stints.find(s => lap >= s[0] && lap <= s[1]) || car.stints[car.stints.length - 1];
+  return {
+    lap, position: n ? car.pos[n - 1][1] : null,
+    compound: stint ? stint[2] : null, age: stint ? stint[3] + Math.max(0, lap - stint[0]) : null,
+    pit: car.pits.some(p => t >= p[0] && t <= p[1]), out: car.out !== null && t > car.out + 20,
+  };
+}
+
+// ---- state ----
+let t = Math.max(0, D.lapStarts[0] - 3), playing = !reduced, speed = 10, labelMode = 'All', follow = null;
+const cam = {x: D.width / 2, y: D.height / 2, z: 1};
+const canvas = $('view'), ctx = canvas.getContext('2d');
+let W = 0, H = 0, base = 1;
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), box = canvas.getBoundingClientRect();
+  W = box.width; H = box.height;
+  canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  base = Math.min((W - 90) / D.width, (H - 110) / D.height);
+  drawTicks();
+}
+const SX = x => W / 2 + (x - cam.x) * base * cam.z, SY = y => H / 2 + 14 + (y - cam.y) * base * cam.z;
+
+// ---- drawing ----
+function draw() {
+  const carbon = true;  // the replay lives on the dark pages
+  ctx.clearRect(0, 0, W, H);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.strokeStyle = carbon ? '#5A5E68' : '#2B2D31';
+  ctx.lineWidth = Math.max(7, 140 * base * cam.z);
+  ctx.beginPath();
+  D.track.x.forEach((x, i) => (i ? ctx.lineTo(SX(x), SY(D.track.y[i])) : ctx.moveTo(SX(x), SY(D.track.y[i]))));
+  ctx.closePath(); ctx.stroke();
+  // start/finish line, across the track at the first outline point
+  const ax = SX(D.track.x[0]), ay = SY(D.track.y[0]), bx = SX(D.track.x[2]), by = SY(D.track.y[2]);
+  const len = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / len, ny = (bx - ax) / len, half = ctx.lineWidth / 2 + 5;
+  ctx.strokeStyle = carbon ? '#F5F5F7' : '#FFFFFF'; ctx.lineWidth = 3; ctx.lineCap = 'butt';
+  ctx.beginPath(); ctx.moveTo(ax - nx * half, ay - ny * half); ctx.lineTo(ax + nx * half, ay + ny * half); ctx.stroke();
+
+  const size = 15 * (1 + (cam.z - 1) * 0.5);
+  const order = cars.slice().sort((a, b) => (a === follow) - (b === follow) || a.selected - b.selected);
+  for (const car of order) {
+    const here = locate(car, t), st = status(car, t);
+    car.visible = !!here && !st.out;
+    if (!car.visible) continue;
+    const ahead = locate(car, t + 0.25), behind = locate(car, t - 0.25);
+    if (ahead && behind && Math.hypot(ahead[0] - behind[0], ahead[1] - behind[1]) > 12)
+      car.heading = Math.atan2(ahead[1] - behind[1], ahead[0] - behind[0]);
+    car.sx = SX(here[0]); car.sy = SY(here[1]);
+    drawCar(ctx, car.sx, car.sy, car.heading, size, car.c, carbon ? 'rgba(255,255,255,.7)' : null);
+    if (labelMode === 'All' || (labelMode === 'Selected' && (car.selected || car === follow))) {
+      ctx.font = `${car.selected || car === follow ? 700 : 600} 10.5px Inter, sans-serif`;
+      const w = ctx.measureText(car.a).width + 10, lx = car.sx + size * 0.55, ly = car.sy - size * 0.55 - 15;
+      ctx.fillStyle = carbon ? 'rgba(23,24,27,.86)' : 'rgba(255,255,255,.9)';
+      ctx.beginPath(); ctx.roundRect(lx, ly, w, 15, 7.5); ctx.fill();
+      ctx.fillStyle = carbon ? '#F5F5F7' : '#1D1D1F'; ctx.textBaseline = 'middle';
+      ctx.fillText(car.a, lx + 5, ly + 8);
+    }
+  }
+}
+
+// ---- leaderboard tower ----
+const rows = $('rows'), rowOf = new Map();
+cars.forEach(car => {
+  const el = document.createElement('button');
+  el.className = 'row' + (car.selected ? ' sel' : '');
+  el.innerHTML = `<span class="p"></span><span class="bar" style="background:${car.c}"></span><span class="name">${car.a}</span>` +
+    '<span class="tyre"></span><span class="meta"></span>';
+  el.addEventListener('click', () => setFollow(follow === car ? null : car));
+  rows.appendChild(el); rowOf.set(car, el);
+});
+function updateTower() {
+  const states = cars.map(car => [car, status(car, t)]);
+  states.sort((a, b) => (a[1].out - b[1].out) || ((a[1].position ?? 99) - (b[1].position ?? 99)));
+  states.forEach(([car, st], rank) => {
+    const el = rowOf.get(car);
+    el.style.transform = `translateY(${rank * 27}px)`;
+    el.classList.toggle('out', st.out); el.classList.toggle('follow', car === follow);
+    el.children[0].textContent = st.out ? '' : (st.position ?? '');
+    const tyre = el.children[3];
+    tyre.style.background = st.compound ? (TYRES[st.compound] || TYRES.UNKNOWN) : 'transparent';
+    tyre.className = 'tyre' + (st.compound === 'HARD' ? ' outlined' : '');
+    tyre.title = st.compound ? st.compound.toLowerCase() : '';
+    el.children[4].innerHTML = st.out ? 'out' : st.pit ? '<b>PIT</b>' : (st.age !== null && st.lap > 0 ? `${st.compound[0]} ${st.age}` : '');
+  });
+  const leaderLap = Math.max(1, Math.min(D.totalLaps, countUpTo(D.lapStarts, t)));
+  $('lap').innerHTML = t < D.lapStarts[0] ? 'Grid' : `Lap ${leaderLap}<small>/ ${D.totalLaps}</small>`;
+  const s = Math.max(0, t - D.lapStarts[0]);
+  $('clock').textContent = `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')} race time`;
+  const period = D.periods.find(p => t >= p[0] && t <= p[1]);
+  const banner = $('banner');
+  if (period) { banner.textContent = NAMES[period[2]]; banner.className = 'banner on ' + period[2]; }
+  else if (t >= D.finish) { banner.textContent = 'Chequered flag'; banner.className = 'banner on FLAG'; }
+  else banner.className = 'banner';
+}
+
+// ---- controls ----
+const ICONS = {play: '<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z"/></svg>', pause: '<svg viewBox="0 0 16 16"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z"/></svg>'};
+function setPlaying(on) { playing = on; $('play').innerHTML = on ? ICONS.pause : ICONS.play; last = performance.now(); }
+function segment(id, options, current, onPick) {
+  const group = $(id);
+  options.forEach(option => {
+    const b = document.createElement('button');
+    b.textContent = typeof option === 'number' ? '×' + option : option;
+    b.setAttribute('aria-pressed', option === current);
+    b.addEventListener('click', () => { [...group.children].forEach(c => c.setAttribute('aria-pressed', c === b)); onPick(option); });
+    group.appendChild(b);
+  });
+}
+segment('speeds', SPEEDS, speed, v => { speed = v; });
+segment('labels', LABELS, labelMode, v => { labelMode = v; });
+$('play').addEventListener('click', () => { if (t >= D.duration - 1) t = Math.max(0, D.lapStarts[0] - 3); setPlaying(!playing); });
+$('full').addEventListener('click', () => {
+  // the browser may refuse full screen inside an embedded frame; then nothing changes
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+});
+document.addEventListener('fullscreenchange', () => {
+  const on = !!document.fullscreenElement;
+  document.body.classList.toggle('full', on); $('full').setAttribute('aria-pressed', on);
+  setTimeout(resize, 60);
+});
+const slider = $('time'); slider.max = D.duration;
+slider.addEventListener('input', () => { t = +slider.value; updateTower(); });
+document.addEventListener('keydown', e => { if (e.code === 'Space' && e.target.tagName !== 'BUTTON') { e.preventDefault(); $('play').click(); } });
+
+function drawTicks() {
+  const c = $('ticks'), dpr = Math.min(window.devicePixelRatio || 1, 2), box = c.getBoundingClientRect();
+  c.width = Math.round(box.width * dpr); c.height = Math.round(box.height * dpr);
+  const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const pad = 16, X = s => pad + (s / D.duration) * (box.width - 2 * pad);
+  const carbon = true;  // the replay lives on the dark pages
+  D.periods.forEach(p => { g.fillStyle = p[2] === 'RED' ? 'rgba(225,6,0,.5)' : 'rgba(247,198,0,.75)'; g.fillRect(X(p[0]), 22, Math.max(2, X(p[1]) - X(p[0])), 5); });
+  g.fillStyle = carbon ? 'rgba(245,245,247,.6)' : 'rgba(29,29,31,.5)'; g.font = '10px Inter, sans-serif'; g.textAlign = 'center';
+  const every = D.totalLaps > 40 ? 10 : 5;
+  D.lapStarts.forEach((s, i) => {
+    const lap = i + 1, major = lap === 1 || lap % every === 0;
+    g.fillRect(X(s), 22, 1, major ? 7 : 3);
+    if (major) g.fillText(lap, X(s), 40);
+  });
+}
+
+// ---- pointer: hover tooltip, click to follow ----
+const tip = $('tip');
+function carAt(event) {
+  const box = canvas.getBoundingClientRect(), mx = event.clientX - box.left, my = event.clientY - box.top;
+  let best = null, bestD = 18;
+  cars.forEach(car => { if (!car.visible) return; const d = Math.hypot(car.sx - mx, car.sy - my); if (d < bestD) { best = car; bestD = d; } });
+  return [best, mx, my];
+}
+canvas.addEventListener('mousemove', event => {
+  const [car, mx, my] = carAt(event);
+  canvas.style.cursor = car ? 'pointer' : 'default';
+  if (!car) { tip.style.opacity = 0; return; }
+  const st = status(car, t);
+  tip.innerHTML = `<b>${car.a}</b> ${car.team}<br>P${st.position ?? '–'}, lap ${Math.max(1, st.lap)}` +
+    (st.compound ? `<br>${st.compound.toLowerCase()} tyres, ${st.age} lap${st.age === 1 ? "" : "s"} old` : '') + (st.pit ? '<br>in the pit lane' : '');
+  tip.style.opacity = 1;
+  tip.style.left = Math.min(mx + 14, W - tip.offsetWidth - 8) + 'px'; tip.style.top = Math.max(8, my - tip.offsetHeight - 10) + 'px';
+});
+canvas.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+canvas.addEventListener('click', event => setFollow(carAt(event)[0]));
+function setFollow(car) { follow = car; $('hint').style.opacity = car ? 0 : .55; updateTower(); }
+
+// ---- main loop ----
+let last = performance.now(), towerAt = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (playing) {
+    t += dt * speed;
+    if (t >= D.duration) { t = D.duration; setPlaying(false); }
+    slider.value = t;
+  }
+  // camera eases towards the followed car (or back to the whole track)
+  const target = follow && follow.visible ? locate(follow, t) : null;
+  const goal = target ? {x: target[0], y: target[1], z: 3.4} : {x: D.width / 2, y: D.height / 2, z: 1};
+  const k = reduced ? 1 : Math.min(1, dt * 4.5);
+  cam.x += (goal.x - cam.x) * k; cam.y += (goal.y - cam.y) * k; cam.z += (goal.z - cam.z) * k;
+  draw();
+  if (now - towerAt > 200) { updateTower(); towerAt = now; }
+  requestAnimationFrame(frame);
+}
+new ResizeObserver(resize).observe(canvas);
+resize(); setPlaying(playing); updateTower();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

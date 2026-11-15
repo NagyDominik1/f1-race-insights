@@ -1,7 +1,8 @@
-"""Design tokens, data colours, the Plotly template and the global CSS block.
+"""Design tokens, data colours, the Plotly template and the CSS blocks.
 
-Palette colours style the interface; team and tyre colours are data colours
-and are kept separate. No Streamlit imports here.
+Two surfaces: the landing page is light (soft whites, never pure white), the
+Analytics and Races pages are dark with glass cards. Team and tyre colours are
+data colours and stay the same everywhere. No Streamlit imports here.
 """
 
 import numpy as np
@@ -9,18 +10,30 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 
-# --- interface palette -----------------------------------------------------
-CANVAS = "#FBFBFD"
-TILE = "#F2F2F5"
-WHITE = "#FFFFFF"
+# --- light palette (landing page) ------------------------------------------
+CANVAS = "#F5F5F7"
+TILE = "#E8E8ED"
+WHITE = "#FBFBFD"  # the lightest surface; pure #FFFFFF is not used for large areas
 INK = "#1D1D1F"
-SECONDARY = "#6E6E73"
-HAIRLINE = "#E3E3E8"
+SECONDARY = "#63636A"
+HAIRLINE = "#DCDCE1"
 RED = "#E10600"  # accent only: calls to action, active states, one key number per view
 MIDNIGHT = "#0B1E3F"
 SKY = "#DCEBFA"
 SAND = "#F3E9DC"
 CARBON = "#2B2D31"
+
+# --- dark palette (Analytics and Races pages) -------------------------------
+TEXT = "#F5F5F7"
+MUTED = "#A1A1A6"
+LINE = "rgba(255,255,255,0.08)"
+LINE_STRONG = "rgba(255,255,255,0.16)"
+GRID = "rgba(255,255,255,0.06)"
+SECTIONS = {
+    # page background, glass card, raised card (a step lighter, for emphasis)
+    "analytics": {"page": "#071124", "card": "#0E182D", "raised": "#15223C"},  # midnight-tinted
+    "races": {"page": "#0A0A0C", "card": "#16171A", "raised": "#1F2024"},      # graphite
+}
 
 FONT = "Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
 FONT_URL = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
@@ -29,14 +42,13 @@ FONT_URL = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&
 COMPOUND_COLOURS = {
     "SOFT": "#E0262C",
     "MEDIUM": "#F7C600",
-    "HARD": "#FFFFFF",
+    "HARD": "#FFFFFF",  # on the dark pages white needs no outline
     "INTERMEDIATE": "#3DAA35",
     "WET": "#1E6FD9",
-    "UNKNOWN": "#C4C4CC",
+    "UNKNOWN": "#8E8E93",
 }
-COMPOUND_OUTLINE = "#9A9AA2"  # HARD is white: it needs an outline on light backgrounds
 FALLBACK_COLOUR = "#808080"
-EXCLUDED_COLOUR = "#C4C4CC"
+EXCLUDED_COLOUR = "#6E6E73"
 TEMPLATE_NAME = "f1insights"
 
 
@@ -59,24 +71,24 @@ def driver_styles(drivers: pd.DataFrame, acronyms: list[str]) -> pd.DataFrame:
 
 
 def plotly_template() -> go.layout.Template:
-    """Light template: ink text, thin axes, faint horizontal gridlines only."""
+    """Dark template: transparent background, light text, thin axes, faint horizontal grid."""
     axis = dict(
-        showgrid=False, zeroline=False, showline=True, linecolor=HAIRLINE, linewidth=1, automargin=True,
-        ticks="outside", tickcolor=HAIRLINE, ticklen=4,
-        tickfont=dict(color=SECONDARY, size=12), title=dict(font=dict(color=SECONDARY, size=12)),
+        showgrid=False, zeroline=False, showline=True, linecolor=LINE_STRONG, linewidth=1, automargin=True,
+        ticks="outside", tickcolor=LINE_STRONG, ticklen=4,
+        tickfont=dict(color=MUTED, size=12), title=dict(font=dict(color=MUTED, size=12)),
     )
     return go.layout.Template(layout=dict(
-        font=dict(family=FONT, color=INK, size=13),
+        font=dict(family=FONT, color=TEXT, size=13),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        colorway=[INK, RED, MIDNIGHT, "#8E8E93", "#3A7BD5", "#B0885A"],
+        colorway=[TEXT, RED, "#7FB0FF", MUTED, "#F7C600", "#3DAA35"],
         margin=dict(l=8, r=8, t=28, b=8),
         xaxis=axis,
-        yaxis=axis | dict(showgrid=True, gridcolor="#EFEFF2", gridwidth=1, showline=False),
+        yaxis=axis | dict(showgrid=True, gridcolor=GRID, gridwidth=1, showline=False),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title_text="",
-                    font=dict(size=12, color=INK)),
-        hoverlabel=dict(bgcolor=WHITE, bordercolor=HAIRLINE, font=dict(family=FONT, color=INK, size=12)),
-        title=dict(font=dict(size=15, color=INK), x=0, xanchor="left"),
+                    font=dict(size=12, color=TEXT)),
+        hoverlabel=dict(bgcolor="#1F2024", bordercolor=LINE_STRONG, font=dict(family=FONT, color=TEXT, size=12)),
+        title=dict(font=dict(size=15, color=TEXT), x=0, xanchor="left"),
     ))
 
 
@@ -86,54 +98,34 @@ def register_plotly_template() -> None:
     pio.templates.default = TEMPLATE_NAME
 
 
-def css_variables() -> str:
-    """The palette as CSS custom properties, shared by the app and the HTML components."""
+def css_variables(section: str | None = None) -> str:
+    """The palette as CSS custom properties.
+
+    Without a section these are the light tokens of the landing page. With a
+    section they are its dark tokens under the same names, so the HTML
+    components (which only use the variables) follow the page they sit on.
+    """
     tokens = {
         "canvas": CANVAS, "tile": TILE, "white": WHITE, "ink": INK, "secondary": SECONDARY,
         "hairline": HAIRLINE, "red": RED, "midnight": MIDNIGHT, "sky": SKY, "sand": SAND,
-        "carbon": CARBON,
+        "carbon": CARBON, "on-ink": "#FFFFFF", "soft": "rgba(120,120,128,.14)",
     }
+    if section:
+        dark = SECTIONS[section]
+        tokens |= {
+            "canvas": dark["page"], "tile": dark["raised"], "white": dark["card"], "ink": TEXT,
+            "secondary": MUTED, "hairline": LINE, "sky": dark["raised"], "sand": dark["raised"],
+            "on-ink": INK, "soft": "rgba(255,255,255,.08)",
+        }
     lines = "".join(f"--{name}:{value};" for name, value in tokens.items())
     return f":root{{{lines}--font:{FONT};--ease:cubic-bezier(.2,.8,.2,1);}}"
 
 
-ASPHALT = "#1B1C1F"
-SECTION_BACKGROUNDS = {
-    # analytics: the "data room", plain midnight
-    "analytics": f"background: {MIDNIGHT};",
-    # races: "track side", dark asphalt with a fine two-layer speckle
-    "races": (
-        f"background-color: {ASPHALT};"
-        "background-image: radial-gradient(rgba(255,255,255,.028) .8px, transparent 1.2px),"
-        " radial-gradient(rgba(0,0,0,.22) .9px, transparent 1.4px),"
-        " radial-gradient(rgba(255,255,255,.018) .7px, transparent 1.1px);"
-        "background-size: 5px 5px, 9px 9px, 13px 13px; background-position: 0 0, 2px 4px, 6px 1px;"
-    ),
-}
-
-
-def section_css(section: str) -> str:
-    """Extra CSS for a dark section page: background, and light text for what sits outside the cards."""
-    outside = ':not([class*="st-key-tile-"] *)'
-    return f"""
-.stApp, [data-testid="stAppViewContainer"] {{ {SECTION_BACKGROUNDS[section]} }}
-[data-testid="stHeader"] {{ background: var(--canvas); backdrop-filter: none; border-bottom: 0; }}
-.app-footer {{ color: rgba(255,255,255,.66); border-top-color: rgba(255,255,255,.16); }}
-.app-footer a {{ color: #fff; }}
-[data-testid="stCaptionContainer"]{outside} :is(p, span, a) {{ color: rgba(255,255,255,.74); }}
-[data-testid="stWidgetLabel"]{outside} :is(p, span) {{ color: #fff; }}
-:is([data-testid="stSpinner"], [data-testid="stProgress"]){outside} :is(p, span) {{ color: #fff; }}
-[data-testid="stButtonGroup"]{outside} button {{ background: #fff; }}
-[data-testid="stButtonGroup"]{outside} button:is([kind$="Active"], [aria-checked="true"], [aria-pressed="true"]) {{ background: var(--red); border-color: var(--red); }}
-[data-testid="stButtonGroup"]{outside} button:is([kind$="Active"], [aria-checked="true"], [aria-pressed="true"]) :is(p, span, div) {{ color: #fff; }}
-"""
-
-
 def global_css() -> str:
-    """One CSS block for the whole Streamlit app (bento tiles, type, navigation).
+    """Base CSS of every page (type, tiles, header, controls).
 
     The Inter font itself is loaded through .streamlit/config.toml: st.html
-    drops style blocks that contain an @import rule.
+    drops style blocks that contain an @import rule or angle brackets.
     """
     return f"""
 {css_variables()}
@@ -144,51 +136,22 @@ h1, h2, h3 {{ font-family: var(--font); color: var(--ink); letter-spacing: -0.02
 h1 {{ font-size: clamp(2.2rem, 4.4vw, 3.5rem); letter-spacing: -0.035em; line-height: 1.04; font-weight: 700; padding: 0; }}
 h2 {{ font-size: 1.75rem; }}
 h3 {{ font-size: 1.2rem; padding-bottom: .2rem; }}
-[data-testid="stHeader"] {{ background: rgba(251,251,253,.82); backdrop-filter: saturate(180%) blur(18px); border-bottom: 1px solid var(--hairline); }}
+[data-testid="stHeader"] {{ background: rgba(245,245,247,.82); backdrop-filter: saturate(180%) blur(18px); border-bottom: 1px solid var(--hairline); }}
 [data-testid="stTopNavLink"], [data-testid="stTopNavSection"] {{ font-weight: 500; }}
 
 /* bento tiles: st.container(border=True) with a key that starts with "tile-" plus the tone */
 [class*="st-key-tile-"] {{ border: 0 !important; border-radius: 24px !important; padding: 1.5rem 1.6rem !important;
   background: var(--white); box-shadow: 0 0 0 1px var(--hairline); }}
-[class*="st-key-tile-gray-"] {{ background: var(--tile); box-shadow: none; }}
-[class*="st-key-tile-sand-"] {{ background: var(--sand); box-shadow: none; }}
-[class*="st-key-tile-sky-"] {{ background: var(--sky); box-shadow: none; }}
-[class*="st-key-tile-midnight-"] {{ background: var(--midnight); box-shadow: none; }}
-[class*="st-key-tile-carbon-"] {{ background: var(--carbon); box-shadow: none; }}
-:is([class*="st-key-tile-midnight-"], [class*="st-key-tile-carbon-"]) :is(h1,h2,h3,p,li,span,label,strong,em) {{ color: #F5F5F7; }}
-:is([class*="st-key-tile-midnight-"], [class*="st-key-tile-carbon-"]) :is(.tile-sub, [data-testid="stCaptionContainer"] p) {{ color: rgba(255,255,255,.7); }}
-:is([class*="st-key-tile-midnight-"], [class*="st-key-tile-carbon-"]) code {{ color: var(--ink); }}
-:is([class*="st-key-tile-midnight-"], [class*="st-key-tile-carbon-"]) blockquote {{ border-left-color: var(--red); }}
-
-/* hero band: a dark tile whose first child is the decorative canvas, with the page header on top */
-[class*="st-key-hero-"] {{ position: relative; border-radius: 28px; overflow: hidden; padding: 1.5rem 2rem 1.5rem !important;
-  min-height: 244px; justify-content: flex-end; margin-bottom: .35rem; }}
-.st-key-hero-analytics {{ background: var(--midnight); box-shadow: 0 0 0 1px rgba(255,255,255,.1); }}
-.st-key-hero-races {{ background: var(--carbon); box-shadow: 0 0 0 1px rgba(255,255,255,.07); }}
-.st-key-hero-races::before {{ content: ""; position: absolute; left: 0; right: 0; top: 0; height: 9px; z-index: 1;
-  background: repeating-linear-gradient(90deg, var(--red) 0 30px, #fff 30px 60px); }}
-[class*="st-key-hero-"] > [data-testid="stElementContainer"]:first-child {{ position: static; }}
-.hero-art {{ position: absolute; inset: 0; pointer-events: none; }}
-.hero-art canvas {{ width: 100%; height: 100%; display: block; }}
-[class*="st-key-hero-"] > :not(:first-child) {{ position: relative; z-index: 2; }}
-.accent-bar {{ display: block; width: 46px; height: 6px; background: var(--red); transform: skewX(-24deg); margin: 0 0 .75rem 3px; }}
-[class*="st-key-hero-"] .gp-title {{ color: #fff; }}
-[class*="st-key-hero-"] .gp-meta {{ color: rgba(255,255,255,.78); }}
-[class*="st-key-hero-"] .gp-meta strong {{ color: #fff; }}
-[class*="st-key-hero-"] [data-testid="stPageLink"] a :is(p, span) {{ color: #fff; }}
-[class*="st-key-hero-"] [data-testid="stPageLink"] a:hover {{ background: rgba(255,255,255,.12); }}
-.ri-logo {{ height: 28px; width: auto; display: block; }}
-@media (max-width: 640px) {{ [class*="st-key-hero-"] {{ padding: 1.4rem 1.1rem 1.1rem !important; min-height: 0; }} }}
 .tile-sub {{ color: var(--secondary); font-size: .95rem; margin: -.35rem 0 .6rem; max-width: 68ch; }}
 
 /* page header */
 .gp-title {{ font-size: clamp(2rem, 4vw, 3.25rem); font-weight: 700; letter-spacing: -0.035em; line-height: 1.05; color: var(--ink); margin: .2rem 0 .35rem; }}
 .gp-meta {{ color: var(--secondary); font-size: 1.05rem; margin: 0; }}
 .gp-meta strong {{ color: var(--ink); font-weight: 600; }}
-.badge {{ display: inline-block; margin-left: .6rem; padding: .16rem .6rem; border-radius: 999px; background: var(--sand);
-  color: #6B4E2E; font-size: .78rem; font-weight: 600; vertical-align: middle; }}
-.app-footer {{ color: var(--secondary); font-size: .82rem; margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--hairline); }}
-.app-footer a {{ color: var(--ink); }}
+.badge {{ display: inline-block; margin-left: .6rem; padding: .16rem .6rem; border-radius: 999px; font-size: .78rem; font-weight: 600; vertical-align: middle; }}
+.accent-bar {{ display: block; width: 46px; height: 6px; background: var(--red); transform: skewX(-24deg); margin: 0 0 .75rem 3px; }}
+.app-footer {{ font-size: .82rem; margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--hairline); }}
+.ri-logo {{ height: 28px; width: auto; display: block; }}
 
 /* controls */
 .stButton > button, [data-testid="stPopover"] button, [data-testid="stPageLink"] a {{ border-radius: 999px; font-weight: 500; }}
@@ -196,8 +159,60 @@ h3 {{ font-size: 1.2rem; padding-bottom: .2rem; }}
 .stButton > button {{ transition: transform .25s var(--ease), box-shadow .25s var(--ease); }}
 .stButton > button:hover {{ transform: translateY(-1px); }}
 :focus-visible {{ outline: 2px solid var(--red); outline-offset: 2px; }}
-[data-testid="stDataFrame"] {{ border-radius: 14px; overflow: hidden; }}
-[data-testid="stCaptionContainer"] {{ color: var(--secondary); }}
 iframe[data-testid="stIFrame"] {{ border-radius: 24px; }}
 @media (prefers-reduced-motion: reduce) {{ *, *::before, *::after {{ transition: none !important; animation: none !important; }} }}
+"""
+
+
+def section_css(section: str) -> str:
+    """CSS of a dark section page: page colour, glass cards, light text, dark controls, hero backdrop."""
+    dark = SECTIONS[section]
+    main = ".stMainBlockContainer"
+    active = ':is([kind$="Active"], [aria-checked="true"], [aria-pressed="true"])'
+    return f"""
+html, body, .stApp, [data-testid="stAppViewContainer"] {{ background: {dark["page"]}; }}
+[data-testid="stHeader"] {{ background: rgba(10,10,12,.72); backdrop-filter: saturate(160%) blur(18px); border-bottom: 1px solid {LINE}; }}
+[data-testid="stHeader"] :is(p, span, a) {{ color: {TEXT}; }}
+[data-testid="stHeader"] svg {{ fill: {TEXT}; color: {TEXT}; }}
+[data-testid="stHeader"] :is([data-testid="stTopNavLink"], [data-testid="stTopNavSection"]):hover {{ background: rgba(255,255,255,.1); }}
+
+{main} :is(p, span, label, li, h1, h2, h3, h4, strong, em, td, th, small, a) {{ color: {TEXT}; }}
+{main} :is(.tile-sub, .gp-meta, .app-footer, [data-testid="stCaptionContainer"] :is(p, span)) {{ color: {MUTED}; }}
+{main} .gp-meta strong, {main} .gp-title {{ color: {TEXT}; }}
+{main} .badge {{ background: rgba(255,255,255,.1); color: {TEXT}; }}
+{main} .app-footer {{ border-top-color: {LINE}; }}
+{main} code {{ background: rgba(255,255,255,.1); color: {TEXT}; }}
+{main} blockquote {{ border-left-color: {RED}; }}
+
+/* dark glass cards: one hairline, a soft highlight along the top edge */
+{main} [class*="st-key-tile-"] {{ background: {dark["card"]}; box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 0 0 1px {LINE}; }}
+{main} :is([class*="st-key-tile-gray-"], [class*="st-key-tile-sand-"], [class*="st-key-tile-sky-"], [class*="st-key-tile-carbon-"]) {{
+  background: {dark["raised"]}; }}
+
+/* controls on dark */
+{main} :is(.stButton > button[kind="secondary"], [data-testid="stPopover"] button, [data-testid="stButtonGroup"] button) {{
+  background: rgba(255,255,255,.07); border-color: {LINE_STRONG}; }}
+{main} [data-testid="stButtonGroup"] button{active} {{ background: {RED}; border-color: {RED}; }}
+{main} [data-testid="stPageLink"] a:hover {{ background: rgba(255,255,255,.1); }}
+{main} [data-testid="stCheckbox"] label:has(input:not(:checked)) > div:nth-child(2) {{ background: rgba(255,255,255,.22); }}
+
+/* plain tables instead of the light data grid */
+.ri-table-wrap.scroll {{ max-height: 292px; overflow-y: auto; }}
+.ri-table {{ width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }}
+.ri-table th {{ text-align: left; font-size: .78rem; font-weight: 500; color: {MUTED}; padding: 6px 10px 8px 0; border-bottom: 1px solid {LINE_STRONG}; }}
+.ri-table td {{ font-size: .9rem; padding: 7px 10px 7px 0; border-bottom: 1px solid {LINE}; }}
+.ri-table tr:last-child td {{ border-bottom: 0; }}
+.ri-table tbody th {{ color: {TEXT}; font-weight: 600; font-size: .9rem; border-bottom: 1px solid {LINE}; }}
+
+/* hero: the page header on top of an abstract backdrop drawn from the session's data */
+[class*="st-key-hero-"] {{ position: relative; padding: 2.4rem .25rem 1.3rem !important; min-height: 250px; justify-content: flex-end; }}
+[class*="st-key-hero-"] > [data-testid="stElementContainer"]:first-child {{ position: static; }}
+.hero-art {{ position: absolute; inset: -4.5rem 0 -150px 0; pointer-events: none; z-index: 0;
+  -webkit-mask-image: radial-gradient(ellipse 78% 88% at 58% 36%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(ellipse 78% 88% at 58% 36%, #000 30%, transparent 100%); }}
+.hero-art canvas {{ width: 100%; height: 100%; display: block; }}
+[class*="st-key-hero-"] > :not(:first-child) {{ position: relative; z-index: 2; }}
+/* everything after the hero sits above its backdrop */
+[class*="st-key-hero-"] ~ * {{ position: relative; z-index: 1; }}
+@media (max-width: 640px) {{ [class*="st-key-hero-"] {{ padding-top: 1.2rem !important; min-height: 0; }} }}
 """

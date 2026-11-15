@@ -35,7 +35,7 @@
   transition: background .3s var(--ease), color .3s var(--ease), transform .3s var(--ease); }
 .st-key-lt-analytics .lt-copy :is(h2, p) { color: #fff; }
 .st-key-lt-analytics .lt-copy p { color: rgba(255,255,255,.72); }
-.st-key-lt-analytics .lt-cta { background: #fff; color: var(--ink); }
+.st-key-lt-analytics .lt-cta { background: var(--canvas); color: var(--ink); }
 .st-key-lt-races .lt-copy h2 { color: var(--ink); }
 .st-key-lt-races .lt-copy p { color: #3F4A5A; }
 .st-key-lt-races .lt-cta { background: var(--ink); color: #fff; }

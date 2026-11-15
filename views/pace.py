@@ -39,7 +39,7 @@ with side, components.tile("stats", "gray"):
         "Std (s)": stats_table["std"].map("{:.3f}".format).to_numpy(),
         "Fastest": stats_table["fastest"].map(analysis.format_lap_time).to_numpy(),
     }, index=stats_table["acronym"].rename("")).T
-    st.dataframe(show)
+    components.table(show, index=True)
     st.caption(
         "Median and IQR (the width of the middle 50% of laps) are used instead of mean and standard deviation "
         "because one slow lap behind traffic barely moves them. The mean would shift with every outlier."
@@ -53,7 +53,7 @@ with side, components.tile("filtered", "sand"):
     if counts.empty:
         st.caption("Nothing: every lap of the selected drivers counts as clean.")
     else:
-        st.dataframe(counts, hide_index=True)
+        components.table(counts)
     st.caption(f"A lap slower than 107% of {reference} counts as not representative.")
 
 components.footer()

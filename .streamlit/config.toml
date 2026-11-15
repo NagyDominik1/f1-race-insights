@@ -1,8 +1,8 @@
 [theme]
 base = "light"
 primaryColor = "#E10600"
-backgroundColor = "#FBFBFD"
-secondaryBackgroundColor = "#F2F2F5"
+backgroundColor = "#F5F5F7"
+secondaryBackgroundColor = "#E8E8ED"
 textColor = "#1D1D1F"
 font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
 baseRadius = "large"

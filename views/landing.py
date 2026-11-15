@@ -14,6 +14,7 @@ def tile_html(canvas_id: str, title: str, text: str, cta: str) -> str:
 # the intro plays once per Streamlit session; ?intro=0 skips it (the browser also remembers it per tab)
 show_intro = not st.session_state.get("intro_shown") and st.query_params.get("intro") != "0"
 st.session_state.intro_shown = True
+st.session_state.section = None  # the landing page is the light surface
 state.resolve()  # keeps the selection in the URL, so a shared link opens the same race
 components.inject_css(extra=components.template_text("landing.css") + components.template_text("intro.css"))
 if show_intro:

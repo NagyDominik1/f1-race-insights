@@ -27,10 +27,11 @@
 
     if (reduced) { intro.classList.add('still', 'ready'); return; }
     const lamps = [...intro.querySelectorAll('.ri-lights i')];
-    lamps.forEach((lamp, i) => later(700 + i * 1000, () => lamp.classList.add('on')));   // one by one, a second apart
-    later(700 + lamps.length * 1000 + 300, () => lamps.forEach(lamp => lamp.classList.remove('on')));  // lights out
-    later(700 + lamps.length * 1000 + 450, () => intro.classList.add('go'));             // stripe, then the logo
-    later(700 + lamps.length * 1000 + 3000, () => intro.classList.add('ready'));         // "Press any key"
+    const STEP = 600, FIRST = 400, out = FIRST + lamps.length * STEP + 250;
+    lamps.forEach((lamp, i) => later(FIRST + i * STEP, () => lamp.classList.add('on')));  // one by one, 0.6 s apart
+    later(out, () => lamps.forEach(lamp => lamp.classList.remove('on')));                  // lights out
+    later(out + 120, () => intro.classList.add('go'));                                     // stripe, then the logo
+    later(out + 1400, () => intro.classList.add('ready'));                                 // "Press any key" at about 5 s
   }, 40);
   setTimeout(() => clearInterval(wait), 10000);
 })();

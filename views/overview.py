@@ -77,7 +77,7 @@ def race_overview() -> None:
             Pos=table["finish"].astype("string").fillna("DNF"), Driver=table["acronym"],
             Grid=table["grid"], Laps=table["laps"],
         )[["Pos", "Driver", "Grid", "Laps"]]
-        st.dataframe(show, hide_index=True, height=282)
+        components.table(show, scroll=True)
 
 
 def qualifying_overview() -> None:

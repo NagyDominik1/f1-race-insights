@@ -168,6 +168,28 @@ def pace_stats(laps: pd.DataFrame) -> pd.DataFrame:
     return table[["n", "median", "iqr", "std", "fastest"]].sort_values("median").reset_index()
 
 
+def pace_flow(laps: pd.DataFrame, drivers: int = 5, window: int = 5, points: int = 72) -> list[list[float]]:
+    """Smoothed clean-lap series of the quickest drivers, for the abstract page backdrop.
+
+    One list per driver (quickest median first), each `points` long and scaled
+    to 0..1 over all of them together, so the lines keep their real relation.
+    A centred rolling mean over `window` laps turns lap-to-lap noise into a
+    flowing line. Returns [] when there are too few clean laps.
+    """
+    clean = laps.loc[laps["is_clean"]].sort_values("lap_number")
+    names = pace_stats(laps).query("n >= @window")["acronym"].head(drivers)
+    series = [
+        clean.loc[clean["acronym"] == name, "LapTimeSeconds"].rolling(window, center=True, min_periods=1).mean()
+        for name in names
+    ]
+    if not series:
+        return []
+    grid = np.linspace(0, 1, points)
+    lines = np.array([np.interp(grid, np.linspace(0, 1, len(s)), s) for s in series])
+    low, high = lines.min(), lines.max()
+    return np.round((lines - low) / max(high - low, 1e-9), 3).tolist()
+
+
 # --- tyres -----------------------------------------------------------------
 
 def with_stints(laps: pd.DataFrame, stints: pd.DataFrame) -> pd.DataFrame:

@@ -27,7 +27,7 @@ def timeline_payload() -> dict:
         start=stints["lap_start"].astype(int), end=stints["lap_end"].astype(int),
         age=stints["tyre_age_at_start"].fillna(0).astype(int),
         colour=stints["compound"].map(theme.compound_colour),
-        outlined=stints["compound"] == "HARD", dark=stints["compound"].isin(["WET", "SOFT", "INTERMEDIATE"]),
+        outlined=False, dark=stints["compound"].isin(["WET", "SOFT", "INTERMEDIATE"]),
     )[["acronym", "compound", "start", "end", "age", "colour", "outlined", "dark"]]
     marks = pit_stops.assign(lap=pit_stops["lap_number"].astype(int),
                              seconds=pit_stops["pit_duration"].round(1).astype(object).where(pit_stops["pit_duration"].notna(), None))
@@ -41,7 +41,7 @@ def timeline_payload() -> dict:
         for row in order.itertuples()
     ]
     used = [c for c in theme.COMPOUND_COLOURS if c in set(bars["compound"])]
-    compounds = [{"name": c.capitalize(), "colour": theme.COMPOUND_COLOURS[c], "outlined": c == "HARD"} for c in used]
+    compounds = [{"name": c.capitalize(), "colour": theme.COMPOUND_COLOURS[c], "outlined": False} for c in used]
     return {"laps": int(bars["end"].max()), "drivers": rows, "compounds": compounds}
 
 
@@ -50,7 +50,7 @@ with components.tile("timeline"):
     components.tile_heading(
         "Who ran which tyre, and when",
         "One row per driver in finishing order. Bars are stints, coloured by compound and labelled with their "
-        "length in laps; black ticks are pit stops. Hover for details.",
+        "length in laps; thin ticks are pit stops. Hover for details.",
     )
     components.embed("strategy.html", payload, height=len(payload["drivers"]) * 25 + 90)
 
@@ -78,7 +78,7 @@ with side, components.tile("deg-table", "gray"):
             "s per lap (95% CI)": fits["slope"].map("{:+.3f}".format) + " ± " + margin.map("{:.3f}".format),
             "R²": fits["r2"].map("{:.2f}".format),
         })
-        st.dataframe(show, hide_index=True)
+        components.table(show)
     st.caption(
         "Slope of a straight line through lap time against tyre age. If the 95% interval includes zero, the data "
         "cannot tell wear from noise. A low R² means tyre age explains little of the lap-time spread."

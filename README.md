@@ -21,6 +21,8 @@ Grand Prix, session, drivers) is stored in the URL, so every view can be shared 
 
 **Intro.** The app opens on five start lights, lights out, and an original logo that draws
 itself. It plays once per browser session and can be skipped with any key.
+The Analytics and Races pages are dark, with glass cards over an abstract backdrop drawn from
+the selected session: its lap-time series on Analytics, its circuit outline on Races.
 
 ![Intro splash with the Race Insights logo](docs/screenshots/intro.png)
 
@@ -142,7 +144,7 @@ The Methodology page in the app explains each method and its limits in full.
 
 ## Testing and CI
 
-- 57 pytest tests cover the transforms, the HTTP client (cache, retry, range filters), the
+- 58 pytest tests cover the transforms, the HTTP client (cache, retry, range filters), the
   analysis functions and the telemetry payloads.
 - Realistic inputs come from small raw OpenF1 responses saved in `tests/fixtures/`; known
   answers come from synthetic data (a regression with a known slope, a bootstrap with a

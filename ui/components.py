@@ -46,7 +46,7 @@ def template_text(name: str) -> str:
 def render_template(name: str, payload: dict) -> str:
     """Fill an HTML template with the design tokens, the shared car drawing and JSON data."""
     blob = json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
-    head = f"@import url('{theme.FONT_URL}');{theme.css_variables()}"
+    head = f"@import url('{theme.FONT_URL}');{theme.css_variables(st.session_state.get('section'))}"
     html = template_text(name).replace("/*__TOKENS__*/", head).replace("/*__CAR__*/", template_text("car.js"))
     return html.replace("__DATA__", blob)
 
@@ -78,7 +78,7 @@ def animated_plot(fig: go.Figure) -> None:
     height = int(fig.layout.height or 450)
     html = fig.to_html(include_plotlyjs="cdn", full_html=True, auto_play=False, config=PLOT_CONFIG,
                        post_script=ANIMATE_IN, default_height=f"{height}px")
-    style = f"<style>@import url('{theme.FONT_URL}');body{{margin:0;background:{theme.WHITE}}}</style>"
+    style = f"<style>@import url('{theme.FONT_URL}');body{{margin:0;background:transparent}}</style>"
     st.iframe(html.replace("<head>", f"<head>{style}", 1), height=height + 10)
 
 
@@ -95,31 +95,45 @@ def loading(label: str) -> Iterator[None]:
         )
 
 
+def table(df, index: bool = False, scroll: bool = False) -> None:
+    """A plain HTML table that follows the page styling (st.dataframe is always light)."""
+    html = df.to_html(index=index, classes="ri-table", border=0, na_rep="–", justify="unset")
+    st.html(f'<div class="ri-table-wrap{" scroll" if scroll else ""}">{html}</div>')
+
+
 def _hero(section: str):
-    """Open the hero band of a section: page CSS, the dark tile and its decorative canvas."""
+    """Open the hero of a section: page CSS, the header container and its backdrop canvas."""
+    st.session_state.section = section  # HTML components read this to pick the matching dark tokens
     inject_css(extra=theme.section_css(section))
     hero = st.container(key=f"hero-{section}")
-    scene = "dataroom" if section == "analytics" else "trackside"
-    hero.html(f'<div class="hero-art"><canvas id="hero-art" data-scene="{scene}" aria-hidden="true"></canvas></div>')
+    hero.html('<div class="hero-art"><canvas id="hero-art" aria-hidden="true"></canvas></div>')
     return hero
 
 
-def _hero_animation() -> None:
-    """Start the hero canvas animation (decoration only, drawn from the demo race)."""
-    scene = decor.demo_scene()
+def _hero_animation(scene: dict | None) -> None:
+    """Start the hero backdrop (decoration only, drawn from the selected session's data)."""
     if scene:
         st.html(f"<script>{render_template('decor.js', scene)}</script>", unsafe_allow_javascript=True)
 
 
+def _scene(section: str, selection: state.Selection) -> dict | None:
+    """Backdrop data: lap-time flow lines for Analytics, the circuit outline for Races."""
+    if section == "analytics":
+        return decor.flow_scene(selection.session_key, selection.session_name in RACE_SESSIONS)
+    return decor.circuit_scene(selection.session_key)
+
+
 def hero_title(section: str, title: str, meta: str) -> None:
-    """A hero band with a plain title, for pages without a race selection."""
-    with _hero(section):
+    """A hero with a plain title, for pages that do not depend on the race selection."""
+    hero = _hero(section)
+    selection = state.resolve()
+    with hero:
         st.html(f'<span class="accent-bar"></span><p class="gp-title">{title}</p><p class="gp-meta">{meta}</p>')
-    _hero_animation()
+    _hero_animation(_scene(section, selection))
 
 
 def page_header(section: str = "analytics") -> state.Selection:
-    """Shared header of the inner pages: weekend, session, selector, back to start, in the hero band."""
+    """Shared header of the inner pages: weekend, session, selector, back to start, over the backdrop."""
     hero = _hero(section)
     selection = state.resolve()
     meeting = selection.meeting
@@ -137,7 +151,7 @@ def page_header(section: str = "analytics") -> state.Selection:
             st.page_link("views/landing.py", label="Start", icon=":material/arrow_back:")
             with st.popover("Change race", icon=":material/tune:"):
                 state.selector(selection)
-    _hero_animation()
+    _hero_animation(_scene(section, selection))
     return selection
 
 

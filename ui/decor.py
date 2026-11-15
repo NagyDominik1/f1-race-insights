@@ -10,6 +10,7 @@ import numpy as np
 import streamlit as st
 
 from f1insights import analysis, data, telemetry, theme
+from f1insights.openf1 import OpenF1Error
 from ui import loaders
 
 CARS_ON_TRACK = 5
@@ -61,18 +62,11 @@ def logo_script() -> str:
     )
 
 
-def _unit(values: np.ndarray) -> list[float]:
-    """Values scaled to 0..1, rounded for a compact payload."""
-    low, high = np.nanmin(values), np.nanmax(values)
-    return np.round((values - low) / max(high - low, 1e-9), 3).tolist()
-
-
 @st.cache_data(show_spinner=False)
 def demo_scene() -> dict | None:
     """Real numbers from the demo race for the animated backgrounds.
 
-    Position lines by lap, five fastest laps on the track outline, two drivers'
-    clean lap times, every driver's gap to the fastest lap and the team colours.
+    Position lines by lap and five drivers' fastest laps on the track outline (landing page).
     """
     race_key = data.demo_sessions().get("Race")
     if race_key is None:
@@ -102,10 +96,6 @@ def demo_scene() -> dict | None:
         })
     track_x, track_y = telemetry.to_box(outline["x"], outline["y"], fit)
 
-    clean = loaders.analysed_laps(race_key, True)
-    clean = clean.loc[clean["is_clean"]]
-    pace = [_unit(clean.loc[clean["acronym"] == name, "LapTimeSeconds"].to_numpy()) for name in order[:2]]
-    best = laps.groupby("acronym")["LapTimeSeconds"].min().reindex(order).dropna()
     return {
         "laps": int(by_lap["lap_number"].max()), "lines": lines, "cars": cars,
         "track": {
@@ -113,6 +103,40 @@ def demo_scene() -> dict | None:
             "x": (track_x / fit["width"]).round(4).tolist(),
             "y": (track_y / fit["width"]).round(4).tolist(),
         },
-        "pace": pace, "gaps": _unit((best - best.min()).to_numpy()),
-        "colours": colours.drop_duplicates().tolist(),
     }
+
+
+@st.cache_data(ttl=loaders.TTL, max_entries=16, show_spinner=False)
+def circuit_scene(session_key: int) -> dict | None:
+    """Outline of the selected circuit for the Races backdrop (from the session's fastest lap).
+
+    Falls back to the demo circuit if OpenF1 cannot be reached or has no positions.
+    """
+    try:
+        laps = loaders.laps(session_key)
+        quickest = analysis.fastest_lap(laps)
+        lap = None if quickest is None else data.fastest_lap_window(laps, quickest["driver_number"])
+        if lap is not None:
+            location, _ = loaders.lap_telemetry(session_key, int(quickest["driver_number"]), lap["start"], lap["end"])
+            inside = location["date"].between(lap["start"], lap["end"]).sum()
+            if inside > 100 and location["date"].min() <= lap["start"] and location["date"].max() >= lap["end"]:
+                outline = telemetry.track_outline(telemetry.clip_to_window(location, lap["start"], lap["end"]), points=220)
+                fit = telemetry.fit_to_box(outline["x"], outline["y"])
+                x, y = telemetry.to_box(outline["x"], outline["y"], fit)
+                return {"scene": "circuit", "track": {
+                    "aspect": round(fit["height"] / fit["width"], 4),
+                    "x": (x / fit["width"]).round(4).tolist(), "y": (y / fit["width"]).round(4).tolist()}}
+    except OpenF1Error:
+        pass
+    demo = demo_scene()
+    return {"scene": "circuit", "track": demo["track"]} if demo else None
+
+
+@st.cache_data(ttl=loaders.TTL, max_entries=16, show_spinner=False)
+def flow_scene(session_key: int, race: bool) -> dict | None:
+    """Smoothed lap-time series of the session's quickest drivers for the Analytics backdrop."""
+    try:
+        flows = analysis.pace_flow(loaders.analysed_laps(session_key, race))
+    except OpenF1Error:
+        flows = []
+    return {"scene": "flow", "flow": flows} if flows else None

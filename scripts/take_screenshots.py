@@ -86,7 +86,7 @@ def ghost_mid_lap(page: Page) -> None:
 
 # name, url path, viewport height, seconds to wait after load, optional interaction
 SHOTS: list[tuple[str, str, int, float, Callable[[Page], None] | None]] = [
-    ("intro", "", 900, 10.5, None),
+    ("intro", "", 900, 6.5, None),
     ("landing", "?intro=0", 900, 9, None),
     ("overview", "overview", 1040, 4, None),
     ("pace", "pace", 900, 4, None),

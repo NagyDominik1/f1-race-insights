@@ -96,7 +96,7 @@ def qualifying_view() -> None:
             "": table["part"], first: table[first].map(analysis.format_lap_time),
             second: table[second].map(analysis.format_lap_time), "Gap (s)": table["gap"].map("{:+.3f}".format),
         })
-        st.dataframe(show, hide_index=True)
+        components.table(show)
     with side, components.tile("ghost", "sky"):
         ghost_link()
 

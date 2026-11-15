@@ -6,12 +6,12 @@
 /*__TOKENS__*/
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-body { font-family: var(--font); color: var(--ink); background: transparent; --map: var(--tile); --card: var(--white); --line: var(--hairline); }
-body.carbon { --map: var(--carbon); --card: #1F2125; --line: #3A3D44; color: #F5F5F7; background: #17181B; }
+body { font-family: var(--font); color: var(--ink); background: transparent; --map: var(--white); --card: var(--white); --line: var(--hairline); }
+body.full { background: var(--canvas); }
 .app { display: flex; flex-direction: column; gap: 12px; height: 100%; padding: 1px; }
-body.carbon .app { padding: 12px; }
+body.full .app { padding: 12px; }
 .stage { display: grid; grid-template-columns: minmax(0, 1fr) 236px; gap: 12px; flex: 1; min-height: 0; }
-.map { position: relative; background: var(--map); border-radius: 24px; overflow: hidden; }
+.map { position: relative; background: var(--map); border-radius: 24px; overflow: hidden; box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 0 0 1px var(--line); }
 #view { position: absolute; inset: 0; width: 100%; height: 100%; cursor: default; touch-action: none; }
 .hud { position: absolute; left: 22px; top: 18px; pointer-events: none; }
 .hud .lap { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
@@ -22,12 +22,12 @@ body.carbon .app { padding: 12px; }
 .banner.on { transform: translate(-50%, 0); }
 .banner.SC, .banner.VSC { background: #F7C600; color: #1D1D1F; }
 .banner.RED { background: var(--red); color: #fff; }
-.banner.FLAG { background: var(--ink); color: #fff; }
+.banner.FLAG { background: var(--ink); color: var(--on-ink); }
 .hint { position: absolute; left: 22px; bottom: 16px; font-size: 12px; opacity: .55; pointer-events: none; }
-#tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 12px; line-height: 1.45;
+#tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--on-ink); font-size: 12px; line-height: 1.45;
   padding: 8px 11px; border-radius: 10px; opacity: 0; transition: opacity .15s; white-space: nowrap; z-index: 5; }
 #tip b { font-size: 13px; }
-.tower { background: var(--card); border-radius: 24px; box-shadow: 0 0 0 1px var(--line); padding: 14px 10px 10px; overflow: hidden;
+.tower { background: var(--card); border-radius: 24px; box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 0 0 1px var(--line); padding: 14px 10px 10px; overflow: hidden;
   display: flex; flex-direction: column; }
 .tower h4 { margin: 0 8px 8px; font-size: 13px; font-weight: 600; opacity: .6; }
 #rows { position: relative; flex: 1; }
@@ -41,20 +41,19 @@ body.carbon .app { padding: 12px; }
 .row .bar { width: 5px; height: 16px; border-radius: 3px; }
 .row .name { font-weight: 500; }
 .row .tyre { width: 12px; height: 12px; border-radius: 50%; }
-.row .tyre.outlined { box-shadow: inset 0 0 0 1.5px #9A9AA2; }
+.row .tyre.outlined { box-shadow: none; }
 .row .meta { font-size: 11px; opacity: .65; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.row .meta b { background: var(--ink); color: #fff; padding: 1px 6px; border-radius: 6px; font-weight: 600; opacity: 1; }
-body.carbon .row .meta b { background: #F5F5F7; color: #1D1D1F; }
-.controls { background: var(--card); border-radius: 20px; box-shadow: 0 0 0 1px var(--line); padding: 10px 14px; display: flex;
+.row .meta b { background: var(--ink); color: var(--on-ink); padding: 1px 6px; border-radius: 6px; font-weight: 600; opacity: 1; }
+.controls { background: var(--card); border-radius: 20px; box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 0 0 1px var(--line); padding: 10px 14px; display: flex;
   align-items: center; gap: 12px; flex-wrap: wrap; }
 button { font-family: inherit; }
 .play { width: 42px; height: 42px; border-radius: 50%; border: 0; background: var(--red); color: #fff; cursor: pointer; flex: none;
   display: grid; place-items: center; transition: transform .2s var(--ease); }
 .play:hover { transform: scale(1.06); }
 .play svg { width: 16px; height: 16px; fill: currentColor; }
-.seg { display: inline-flex; background: rgba(120,120,128,.14); border-radius: 999px; padding: 3px; }
+.seg { display: inline-flex; background: var(--soft); border-radius: 999px; padding: 3px; }
 .seg button { border: 0; background: none; padding: 6px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 500; color: inherit; cursor: pointer; }
-.seg button[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.14); font-weight: 600; }
+.seg button[aria-pressed="true"] { background: rgba(255,255,255,.18); font-weight: 600; }
 .scrub { flex: 1 1 260px; min-width: 200px; position: relative; height: 42px; }
 #ticks { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
 #time { position: absolute; left: 0; top: 0; width: 100%; margin: 0; height: 22px; accent-color: var(--red); cursor: pointer; }
@@ -85,7 +84,7 @@ button { font-family: inherit; }
     <div class="scrub"><canvas id="ticks"></canvas><input id="time" type="range" min="0" step="0.5" aria-label="Race time"></div>
     <span class="label">Labels</span>
     <div class="seg" id="labels" role="group" aria-label="Driver labels"></div>
-    <div class="seg"><button id="carbon" aria-pressed="false">Carbon mode</button></div>
+    <div class="seg"><button id="full" aria-pressed="false">Full screen</button></div>
   </div>
 </div>
 <script>
@@ -151,7 +150,7 @@ const SX = x => W / 2 + (x - cam.x) * base * cam.z, SY = y => H / 2 + 14 + (y - 
 
 // ---- drawing ----
 function draw() {
-  const carbon = document.body.classList.contains('carbon');
+  const carbon = true;  // the replay lives on the dark pages
   ctx.clearRect(0, 0, W, H);
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   ctx.strokeStyle = carbon ? '#5A5E68' : '#2B2D31';
@@ -238,15 +237,16 @@ function segment(id, options, current, onPick) {
 segment('speeds', SPEEDS, speed, v => { speed = v; });
 segment('labels', LABELS, labelMode, v => { labelMode = v; });
 $('play').addEventListener('click', () => { if (t >= D.duration - 1) t = Math.max(0, D.lapStarts[0] - 3); setPlaying(!playing); });
-$('carbon').addEventListener('click', event => {
-  const on = document.body.classList.toggle('carbon');
-  event.currentTarget.setAttribute('aria-pressed', on);
-  // full screen where the browser allows it; the dark theme works either way
-  if (on && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
-  if (!on && document.fullscreenElement) document.exitFullscreen();
+$('full').addEventListener('click', () => {
+  // the browser may refuse full screen inside an embedded frame; then nothing changes
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+});
+document.addEventListener('fullscreenchange', () => {
+  const on = !!document.fullscreenElement;
+  document.body.classList.toggle('full', on); $('full').setAttribute('aria-pressed', on);
   setTimeout(resize, 60);
 });
-document.addEventListener('fullscreenchange', () => setTimeout(resize, 60));
 const slider = $('time'); slider.max = D.duration;
 slider.addEventListener('input', () => { t = +slider.value; updateTower(); });
 document.addEventListener('keydown', e => { if (e.code === 'Space' && e.target.tagName !== 'BUTTON') { e.preventDefault(); $('play').click(); } });
@@ -256,7 +256,7 @@ function drawTicks() {
   c.width = Math.round(box.width * dpr); c.height = Math.round(box.height * dpr);
   const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
   const pad = 16, X = s => pad + (s / D.duration) * (box.width - 2 * pad);
-  const carbon = document.body.classList.contains('carbon');
+  const carbon = true;  // the replay lives on the dark pages
   D.periods.forEach(p => { g.fillStyle = p[2] === 'RED' ? 'rgba(225,6,0,.5)' : 'rgba(247,198,0,.75)'; g.fillRect(X(p[0]), 22, Math.max(2, X(p[1]) - X(p[0])), 5); });
   g.fillStyle = carbon ? 'rgba(245,245,247,.6)' : 'rgba(29,29,31,.5)'; g.font = '10px Inter, sans-serif'; g.textAlign = 'center';
   const every = D.totalLaps > 40 ? 10 : 5;

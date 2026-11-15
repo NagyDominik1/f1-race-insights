@@ -223,3 +223,19 @@ def test_race_story_templates():
     ]
     empty = analysis.race_story(table.iloc[:0], stats_table.iloc[:1], degradation_table.iloc[:0], pits, laps.iloc[:0])
     assert empty == []
+
+
+def test_pace_flow_is_smooth_scaled_and_ordered():
+    rng = np.random.default_rng(5)
+    times = {"FAS": (90 + rng.normal(0, 0.3, 40)).tolist(), "SLO": (92 + rng.normal(0, 0.3, 40)).tolist(),
+             "FEW": [91.0, 91.2]}
+    laps = synthetic_laps(times).assign(is_clean=True)
+    flows = analysis.pace_flow(laps, drivers=5, window=5, points=30)
+    assert len(flows) == 2  # FEW has fewer clean laps than the window
+    assert all(len(line) == 30 for line in flows)
+    values = np.array(flows)
+    assert values.min() == 0 and values.max() == 1  # scaled over both drivers together
+    assert values[0].mean() < values[1].mean()  # quickest driver first, and lower on the scale
+    raw_step = np.abs(np.diff(times["FAS"])).mean() / (max(times["SLO"]) - min(times["FAS"]))
+    assert np.abs(np.diff(values[0])).mean() < raw_step  # the rolling mean removed lap-to-lap noise
+    assert analysis.pace_flow(laps.assign(is_clean=False)) == []

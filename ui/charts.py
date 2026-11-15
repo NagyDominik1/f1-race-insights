@@ -34,7 +34,7 @@ def bump_chart(by_lap: pd.DataFrame, styles: pd.DataFrame, highlighted: list[str
     final = pd.Series([wide.loc[last[name], name] for name in wide.columns], index=wide.columns)
     fig.add_scatter(
         x=last.to_numpy() + 0.8, y=final, text=wide.columns, mode="text", textposition="middle right",
-        textfont=dict(size=11, color=theme.INK), hoverinfo="skip", showlegend=False, cliponaxis=False,
+        textfont=dict(size=11, color=theme.TEXT), hoverinfo="skip", showlegend=False, cliponaxis=False,
     )
     traces = list(range(len(wide.columns)))
     fig.frames = [
@@ -50,7 +50,7 @@ def bump_chart(by_lap: pd.DataFrame, styles: pd.DataFrame, highlighted: list[str
                    showgrid=False, automargin=True, ticks=""),
         updatemenus=[dict(
             type="buttons", showactive=False, x=0, y=1.1, xanchor="left", yanchor="top",
-            bgcolor=theme.WHITE, bordercolor=theme.HAIRLINE, font=dict(size=12, color=theme.INK),
+            bgcolor="rgba(255,255,255,0.08)", bordercolor=theme.LINE_STRONG, font=dict(size=12, color=theme.TEXT),
             buttons=[dict(label="▶  Play the race", method="animate", args=[None, play])],
         )],
     )
@@ -62,9 +62,9 @@ def gap_to_fastest(best: pd.DataFrame, styles: pd.DataFrame) -> go.Figure:
     best = best.sort_values("gap", ascending=False)
     fig = go.Figure(go.Bar(
         x=best["gap"], y=best["acronym"], orientation="h",
-        marker=dict(color=styles.reindex(best["acronym"])["colour"].tolist(), line=dict(color=theme.HAIRLINE, width=1)),
+        marker=dict(color=styles.reindex(best["acronym"])["colour"].tolist(), line=dict(color=theme.LINE_STRONG, width=1)),
         text=[f"+{gap:.3f}" if gap > 0 else format_lap_time(time) for gap, time in zip(best["gap"], best["LapTimeSeconds"])],
-        textposition="outside", textfont=dict(size=11, color=theme.SECONDARY), cliponaxis=False,
+        textposition="outside", textfont=dict(size=11, color=theme.MUTED), cliponaxis=False,
         hovertemplate="<b>%{y}</b> +%{x:.3f} s<extra></extra>",
     ))
     fig.update_layout(height=max(320, 26 * len(best) + 60), xaxis=dict(title="Gap to the fastest lap (s)"),
@@ -82,7 +82,7 @@ def pace_distribution(laps: pd.DataFrame, styles: pd.DataFrame, show_excluded: b
         fig.add_box(
             x=own["acronym"], y=own["LapTimeSeconds"], name=name, boxpoints="all", jitter=0.55, pointpos=0,
             line=dict(color=colour, width=1.6), fillcolor="rgba(0,0,0,0)", whiskerwidth=0.4,
-            marker=dict(color=colour, size=5, opacity=0.6, line=dict(color=theme.INK, width=0.4)),
+            marker=dict(color=colour, size=5, opacity=0.85, line=dict(color="rgba(0,0,0,0.5)", width=0.4)),
             customdata=own["lap_number"], hovertemplate="lap %{customdata}: %{y:.3f} s<extra>" + name + "</extra>",
         )
     low, high = clean["LapTimeSeconds"].min(), clean["LapTimeSeconds"].max()
@@ -92,7 +92,7 @@ def pace_distribution(laps: pd.DataFrame, styles: pd.DataFrame, show_excluded: b
         fig.add_box(
             x=out["acronym"], y=out["LapTimeSeconds"], name="Excluded", boxpoints="all", jitter=0.55, pointpos=0,
             line=dict(color="rgba(0,0,0,0)"), fillcolor="rgba(0,0,0,0)",
-            marker=dict(color=theme.EXCLUDED_COLOUR, size=6, symbol="x-thin", line=dict(color="#8E8E93", width=1.2)),
+            marker=dict(color=theme.EXCLUDED_COLOUR, size=6, symbol="x-thin", line=dict(color=theme.MUTED, width=1.2)),
             customdata=np.stack([out["lap_number"], out["reason"]], axis=-1) if not out.empty else None,
             hovertemplate="lap %{customdata[0]}: %{y:.3f} s<br>excluded: %{customdata[1]}<extra></extra>",
         )
@@ -146,18 +146,18 @@ def delta_figure(deltas: pd.DataFrame, first: str, second: str, styles: pd.DataF
         same_colour = styles.loc[first, "colour"] == styles.loc[second, "colour"]
         fig.add_bar(
             x=deltas.loc[mask, "lap_number"], y=deltas.loc[mask, "delta"], name=f"{name} faster",
-            marker=dict(color=styles.loc[name, "colour"], line=dict(color=theme.INK, width=0.5),
+            marker=dict(color=styles.loc[name, "colour"], line=dict(color=theme.LINE_STRONG, width=0.5),
                         pattern=dict(shape=pattern if same_colour else "", fgcolor=styles.loc[name, "colour"],
-                                     bgcolor=theme.WHITE, fillmode="replace", size=5)),
+                                     bgcolor="rgba(0,0,0,0)", fillmode="replace", size=5)),
             hovertemplate=f"lap %{{x}}: {name} faster by %{{customdata:.3f}} s<extra></extra>",
             customdata=deltas.loc[mask, "delta"].abs(),
         )
-    fig.add_hrect(y0=low, y1=high, fillcolor=theme.INK, opacity=0.07, line_width=0)
-    fig.add_hline(y=median, line=dict(color=theme.INK, width=1.5, dash="dot"),
+    fig.add_hrect(y0=low, y1=high, fillcolor=theme.TEXT, opacity=0.1, line_width=0)
+    fig.add_hline(y=median, line=dict(color=theme.TEXT, width=1.5, dash="dot"),
                   annotation_text=f"median {median:+.3f} s", annotation_position="top right",
-                  annotation_font=dict(size=11, color=theme.INK))
+                  annotation_font=dict(size=11, color=theme.TEXT))
     fig.update_layout(height=420, bargap=0.15, xaxis=dict(title="Lap"),
-                      yaxis=dict(title=f"{first} − {second} (s)", zeroline=True, zerolinecolor=theme.HAIRLINE))
+                      yaxis=dict(title=f"{first} − {second} (s)", zeroline=True, zerolinecolor=theme.LINE_STRONG))
     return fig
 
 
@@ -167,14 +167,14 @@ def sector_figure(table: pd.DataFrame, first: str, second: str, styles: pd.DataF
     faster = np.where(sectors["gap"] < 0, first, second)
     fig = go.Figure(go.Bar(
         x=sectors["gap"], y=sectors["part"], orientation="h",
-        marker=dict(color=styles.reindex(faster)["colour"].tolist(), line=dict(color=theme.INK, width=0.5)),
+        marker=dict(color=styles.reindex(faster)["colour"].tolist(), line=dict(color=theme.LINE_STRONG, width=0.5)),
         text=[f"{name} by {abs(gap):.3f} s" for name, gap in zip(faster, sectors["gap"])],
-        textposition="outside", cliponaxis=False, textfont=dict(size=12, color=theme.INK),
+        textposition="outside", cliponaxis=False, textfont=dict(size=12, color=theme.TEXT),
         hovertemplate="%{y}: %{text}<extra></extra>",
     ))
     span = max(sectors["gap"].abs().max() * 1.9, 0.05)
     fig.update_layout(height=250, xaxis=dict(title=f"{first} − {second} (s)", range=[-span, span], zeroline=True,
-                                             zerolinecolor=theme.HAIRLINE),
+                                             zerolinecolor=theme.LINE_STRONG),
                       yaxis=dict(title="", showgrid=False))
     return fig
 
@@ -205,9 +205,9 @@ def delta_trace(first_lap: pd.DataFrame, second_lap: pd.DataFrame, first: str, s
         fig.add_scatter(x=x, y=part, mode="lines", line=dict(width=0), fill="tozeroy", name=f"{name} ahead",
                         fillcolor=f"rgba({int(colour[1:3], 16)},{int(colour[3:5], 16)},{int(colour[5:7], 16)},0.28)",
                         fillpattern=dict(shape="/" if styles.loc[name, "dash"] == "dash" else ""), hoverinfo="skip")
-    fig.add_scatter(x=x, y=gap, mode="lines", line=dict(color=theme.INK, width=2), showlegend=False,
+    fig.add_scatter(x=x, y=gap, mode="lines", line=dict(color=theme.TEXT, width=2), showlegend=False,
                     hovertemplate=f"{first} − {second}: %{{y:+.3f}} s at %{{x:.0f}}%<extra></extra>")
     fig.update_layout(height=340, xaxis=dict(title="Lap distance (%)", range=[0, 100]),
-                      yaxis=dict(title=f"{first} − {second} (s)", zeroline=True, zerolinecolor=theme.HAIRLINE),
+                      yaxis=dict(title=f"{first} − {second} (s)", zeroline=True, zerolinecolor=theme.LINE_STRONG),
                       margin=dict(l=8, r=8, t=40, b=8))
     return fig

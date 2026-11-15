@@ -3,26 +3,26 @@
   align-items: center; justify-content: center; gap: 34px; cursor: pointer; transition: opacity .45s ease; overflow: hidden; }
 .ri-intro.leave { opacity: 0; pointer-events: none; }
 .ri-lights { display: flex; gap: clamp(10px, 2vw, 22px); padding: 14px 20px; border-radius: 18px; background: #111214;
-  box-shadow: inset 0 0 0 1px #24262b; transition: opacity .5s ease .25s; }
+  box-shadow: inset 0 0 0 1px #24262b; transition: opacity .3s ease .1s; }
 .ri-lights i { width: clamp(30px, 5.4vw, 58px); height: clamp(30px, 5.4vw, 58px); border-radius: 50%; background: #2a0907;
   box-shadow: inset 0 0 0 2px #1a0504; transition: background .08s linear, box-shadow .08s linear; }
 .ri-lights i.on { background: #ff1408; box-shadow: 0 0 34px 6px rgba(255, 20, 8, .6), inset 0 0 12px rgba(255, 190, 170, .65); }
 .ri-intro.go .ri-lights { opacity: 0; }
 .ri-stripe { position: absolute; left: -40%; top: 50%; width: 40%; height: 7px; margin-top: -3px; background: #E10600;
   transform: skewX(-24deg); opacity: 0; box-shadow: 0 0 26px rgba(225, 6, 0, .8); }
-.ri-intro.go .ri-stripe { animation: ri-sweep .75s cubic-bezier(.3, .1, .2, 1) forwards; }
+.ri-intro.go .ri-stripe { animation: ri-sweep .6s cubic-bezier(.3, .1, .2, 1) forwards; }
 .ri-brand { position: absolute; left: 50%; top: 50%; width: min(78vw, 620px); transform: translate(-50%, -50%); text-align: center; }
 .ri-brand [data-logo] { display: block; }
 .ri-logo.ri-draw { width: 100%; height: auto; overflow: visible; }
 .ri-draw .ri-mark polygon { opacity: 0; transform: translateX(-40px); }
 .ri-draw .ri-word { fill-opacity: 0; stroke-width: 1.4; stroke-dasharray: 420; stroke-dashoffset: 420; }
 .ri-intro.go .ri-draw .ri-mark polygon { animation: ri-mark .5s cubic-bezier(.2, .8, .2, 1) forwards; }
-.ri-intro.go .ri-draw .ri-mark polygon:nth-child(1) { animation-delay: .45s; }
-.ri-intro.go .ri-draw .ri-mark polygon:nth-child(2) { animation-delay: .55s; }
-.ri-intro.go .ri-draw .ri-mark polygon:nth-child(3) { animation-delay: .65s; }
-.ri-intro.go .ri-draw .ri-word { animation: ri-draw 1.5s ease .6s forwards, ri-fill .6s ease 1.7s forwards; }
+.ri-intro.go .ri-draw .ri-mark polygon:nth-child(1) { animation-delay: .25s; }
+.ri-intro.go .ri-draw .ri-mark polygon:nth-child(2) { animation-delay: .33s; }
+.ri-intro.go .ri-draw .ri-mark polygon:nth-child(3) { animation-delay: .41s; }
+.ri-intro.go .ri-draw .ri-word { animation: ri-draw .9s ease .35s forwards, ri-fill .45s ease .95s forwards; }
 .ri-tag { margin: 10px 0 0; color: rgba(255, 255, 255, .72); font-size: clamp(.95rem, 1.6vw, 1.2rem); letter-spacing: .01em; opacity: 0; }
-.ri-intro.go .ri-tag { animation: ri-fade .7s ease 2s forwards; }
+.ri-intro.go .ri-tag { animation: ri-fade .5s ease 1.05s forwards; }
 .ri-press { position: absolute; bottom: 16vh; left: 0; right: 0; text-align: center; margin: 0; color: #fff; font-size: 1rem;
   font-weight: 500; opacity: 0; }
 .ri-intro.ready .ri-press { animation: ri-pulse 1.6s ease-in-out infinite; }

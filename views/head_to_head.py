@@ -50,7 +50,7 @@ def race_view() -> None:
             "The dotted line is the median, the grey band its 95% interval.",
         )
         components.plot(charts.delta_figure(deltas, first, second, styles, median, low, high), "delta")
-    with side, components.tile("verdict", "sand"):
+    with side, components.tile("verdict", "carbon"):
         components.tile_heading("What the interval says")
         if decided:
             st.markdown(

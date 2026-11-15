@@ -6,7 +6,7 @@ import streamlit as st
 from f1insights import analysis, data, telemetry, theme
 from ui import charts, components, loaders
 
-selection = components.page_header()
+selection = components.page_header("races")
 if len(selection.drivers) < 2:
     components.empty_state("Pick two drivers under Change race to set their fastest laps against each other.",
                            title="A ghost lap needs two drivers")

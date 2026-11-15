@@ -97,6 +97,38 @@ def css_variables() -> str:
     return f":root{{{lines}--font:{FONT};--ease:cubic-bezier(.2,.8,.2,1);}}"
 
 
+ASPHALT = "#1B1C1F"
+SECTION_BACKGROUNDS = {
+    # analytics: the "data room", plain midnight
+    "analytics": f"background: {MIDNIGHT};",
+    # races: "track side", dark asphalt with a fine two-layer speckle
+    "races": (
+        f"background-color: {ASPHALT};"
+        "background-image: radial-gradient(rgba(255,255,255,.028) .8px, transparent 1.2px),"
+        " radial-gradient(rgba(0,0,0,.22) .9px, transparent 1.4px),"
+        " radial-gradient(rgba(255,255,255,.018) .7px, transparent 1.1px);"
+        "background-size: 5px 5px, 9px 9px, 13px 13px; background-position: 0 0, 2px 4px, 6px 1px;"
+    ),
+}
+
+
+def section_css(section: str) -> str:
+    """Extra CSS for a dark section page: background, and light text for what sits outside the cards."""
+    outside = ':not([class*="st-key-tile-"] *)'
+    return f"""
+.stApp, [data-testid="stAppViewContainer"] {{ {SECTION_BACKGROUNDS[section]} }}
+[data-testid="stHeader"] {{ background: var(--canvas); backdrop-filter: none; border-bottom: 0; }}
+.app-footer {{ color: rgba(255,255,255,.66); border-top-color: rgba(255,255,255,.16); }}
+.app-footer a {{ color: #fff; }}
+[data-testid="stCaptionContainer"]{outside} :is(p, span, a) {{ color: rgba(255,255,255,.74); }}
+[data-testid="stWidgetLabel"]{outside} :is(p, span) {{ color: #fff; }}
+:is([data-testid="stSpinner"], [data-testid="stProgress"]){outside} :is(p, span) {{ color: #fff; }}
+[data-testid="stButtonGroup"]{outside} button {{ background: #fff; }}
+[data-testid="stButtonGroup"]{outside} button:is([kind$="Active"], [aria-checked="true"], [aria-pressed="true"]) {{ background: var(--red); border-color: var(--red); }}
+[data-testid="stButtonGroup"]{outside} button:is([kind$="Active"], [aria-checked="true"], [aria-pressed="true"]) :is(p, span, div) {{ color: #fff; }}
+"""
+
+
 def global_css() -> str:
     """One CSS block for the whole Streamlit app (bento tiles, type, navigation).
 
@@ -122,7 +154,31 @@ h3 {{ font-size: 1.2rem; padding-bottom: .2rem; }}
 [class*="st-key-tile-sand-"] {{ background: var(--sand); box-shadow: none; }}
 [class*="st-key-tile-sky-"] {{ background: var(--sky); box-shadow: none; }}
 [class*="st-key-tile-midnight-"] {{ background: var(--midnight); box-shadow: none; }}
-[class*="st-key-tile-midnight-"] :is(h1,h2,h3,p,li,span,label) {{ color: #fff; }}
+[class*="st-key-tile-carbon-"] {{ background: var(--carbon); box-shadow: none; }}
+:is([class*="st-key-tile-midnight-"], [class*="st-key-tile-carbon-"]) :is(h1,h2,h3,p,li,span,label,strong,em) {{ color: #F5F5F7; }}
+:is([class*="st-key-tile-midnight-"], [class*="st-key-tile-carbon-"]) :is(.tile-sub, [data-testid="stCaptionContainer"] p) {{ color: rgba(255,255,255,.7); }}
+:is([class*="st-key-tile-midnight-"], [class*="st-key-tile-carbon-"]) code {{ color: var(--ink); }}
+:is([class*="st-key-tile-midnight-"], [class*="st-key-tile-carbon-"]) blockquote {{ border-left-color: var(--red); }}
+
+/* hero band: a dark tile whose first child is the decorative canvas, with the page header on top */
+[class*="st-key-hero-"] {{ position: relative; border-radius: 28px; overflow: hidden; padding: 1.5rem 2rem 1.5rem !important;
+  min-height: 244px; justify-content: flex-end; margin-bottom: .35rem; }}
+.st-key-hero-analytics {{ background: var(--midnight); box-shadow: 0 0 0 1px rgba(255,255,255,.1); }}
+.st-key-hero-races {{ background: var(--carbon); box-shadow: 0 0 0 1px rgba(255,255,255,.07); }}
+.st-key-hero-races::before {{ content: ""; position: absolute; left: 0; right: 0; top: 0; height: 9px; z-index: 1;
+  background: repeating-linear-gradient(90deg, var(--red) 0 30px, #fff 30px 60px); }}
+[class*="st-key-hero-"] > [data-testid="stElementContainer"]:first-child {{ position: static; }}
+.hero-art {{ position: absolute; inset: 0; pointer-events: none; }}
+.hero-art canvas {{ width: 100%; height: 100%; display: block; }}
+[class*="st-key-hero-"] > :not(:first-child) {{ position: relative; z-index: 2; }}
+.accent-bar {{ display: block; width: 46px; height: 6px; background: var(--red); transform: skewX(-24deg); margin: 0 0 .75rem 3px; }}
+[class*="st-key-hero-"] .gp-title {{ color: #fff; }}
+[class*="st-key-hero-"] .gp-meta {{ color: rgba(255,255,255,.78); }}
+[class*="st-key-hero-"] .gp-meta strong {{ color: #fff; }}
+[class*="st-key-hero-"] [data-testid="stPageLink"] a :is(p, span) {{ color: #fff; }}
+[class*="st-key-hero-"] [data-testid="stPageLink"] a:hover {{ background: rgba(255,255,255,.12); }}
+.ri-logo {{ height: 28px; width: auto; display: block; }}
+@media (max-width: 640px) {{ [class*="st-key-hero-"] {{ padding: 1.4rem 1.1rem 1.1rem !important; min-height: 0; }} }}
 .tile-sub {{ color: var(--secondary); font-size: .95rem; margin: -.35rem 0 .6rem; max-width: 68ch; }}
 
 /* page header */

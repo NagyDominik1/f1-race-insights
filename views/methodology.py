@@ -5,9 +5,8 @@ import streamlit as st
 from f1insights import analysis, data
 from ui import components
 
-components.inject_css()
-st.html('<p class="gp-title">Methodology</p>'
-        '<p class="gp-meta">How every number and animation in this app is produced, and where it can mislead.</p>')
+components.hero_title("analytics", "Methodology",
+                      "How every number and animation in this app is produced, and where it can mislead.")
 
 SECTIONS = [
     ("source", "white", "Data source and its quirks", f"""
@@ -53,7 +52,7 @@ The **median** is the middle lap: half were faster, half slower. The **IQR** (in
 width of the middle 50% of laps. One bad lap changes neither, which is why they describe typical pace and
 consistency better here. Standard deviation is still shown for comparison.
 """),
-    ("regression", "gray", "Tyre degradation: linear regression", f"""
+    ("regression", "carbon", "Tyre degradation: linear regression", f"""
 For each stint a straight line is fitted through lap time against tyre age (ordinary least squares,
 `scipy.stats.linregress`):
 
@@ -92,7 +91,7 @@ The bootstrap is used because it needs no assumption that the differences are no
 *Limit:* it says the gap is unlikely to be noise, not why it exists. Tyre age, fuel, traffic and team orders
 all remain in the data.
 """),
-    ("replay", "gray", "Race replay: downsampling and interpolation", f"""
+    ("replay", "carbon", "Race replay: downsampling and interpolation", f"""
 OpenF1 reports each car's position about 3.7 times per second: around 35 000 points per driver per race. For
 the replay every driver is linearly interpolated onto one shared time grid at **{data.REPLAY_HZ:g} samples per
 second**, which cuts the data by almost half and lets all cars share one clock. The browser then interpolates

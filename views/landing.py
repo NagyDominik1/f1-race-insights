@@ -1,54 +1,8 @@
 """Landing page: a split screen with two tiles, Analytics and Races."""
 
-import numpy as np
 import streamlit as st
 
-from f1insights import analysis, data, telemetry
-from ui import components, loaders, state
-
-CARS_ON_TRACK = 5
-PATH_HZ = 5
-
-
-@st.cache_data(show_spinner=False)
-def landing_payload() -> dict | None:
-    """Background data from the demo race: positions by lap and fastest laps on the outline."""
-    race_key = data.demo_sessions().get("Race")
-    if race_key is None:
-        return None
-    laps, drivers = loaders.laps(race_key), loaders.drivers(race_key)
-    order = loaders.results(race_key)["acronym"].tolist()
-    by_lap = analysis.position_by_lap(laps, loaders.positions(race_key))
-    lines = by_lap.pivot(index="lap_number", columns="acronym", values="position")
-    lines = lines.reindex(columns=order).astype("float64")
-    lines = [[None if np.isnan(v) else int(v) for v in lines[name]] for name in lines.columns]
-
-    colours = drivers.set_index("acronym")["team_colour"]
-    numbers = drivers.set_index("acronym")["driver_number"]
-    cars, fit, outline = [], None, None
-    for acronym in order[:CARS_ON_TRACK]:
-        lap = data.fastest_lap_window(laps, numbers[acronym])
-        location, _ = loaders.lap_telemetry(race_key, int(numbers[acronym]), lap["start"], lap["end"])
-        path = telemetry.clip_to_window(location, lap["start"], lap["end"])
-        if fit is None:
-            outline = telemetry.track_outline(path, points=240)
-            fit = telemetry.fit_to_box(outline["x"], outline["y"])
-        t = np.arange(0, lap["seconds"], 1 / PATH_HZ)
-        x, y = telemetry.to_box(np.interp(t, path["t"], path["x"]), np.interp(t, path["t"], path["y"]), fit)
-        cars.append({
-            "label": acronym, "colour": colours[acronym], "seconds": round(lap["seconds"], 3),
-            "x": (x / fit["width"]).round(4).tolist(), "y": (y / fit["width"]).round(4).tolist(),
-        })
-    track_x, track_y = telemetry.to_box(outline["x"], outline["y"], fit)
-    return {
-        "laps": int(by_lap["lap_number"].max()), "lines": lines, "cars": cars,
-        "track": {
-            "aspect": round(fit["height"] / fit["width"], 4),
-            "x": (track_x / fit["width"]).round(4).tolist(),
-            "y": (track_y / fit["width"]).round(4).tolist(),
-        },
-    }
-
+from ui import components, decor, state
 
 def tile_html(canvas_id: str, title: str, text: str, cta: str) -> str:
     return (
@@ -57,13 +11,18 @@ def tile_html(canvas_id: str, title: str, text: str, cta: str) -> str:
     )
 
 
+# the intro plays once per Streamlit session; ?intro=0 skips it (the browser also remembers it per tab)
+show_intro = not st.session_state.get("intro_shown") and st.query_params.get("intro") != "0"
+st.session_state.intro_shown = True
 state.resolve()  # keeps the selection in the URL, so a shared link opens the same race
-components.inject_css(extra=components.template_text("landing.css"))
+components.inject_css(extra=components.template_text("landing.css") + components.template_text("intro.css"))
+if show_intro:
+    st.html(decor.intro_html())
+    st.html(f"<script>{decor.logo_script()}{components.template_text('intro.js')}</script>", unsafe_allow_javascript=True)
 
 with st.container(key="landing"):
     st.html(
-        '<div class="lt-brand"><b>F1 Race Insights</b>'
-        "<span>Formula 1 timing data from 2023 to 2026, analysed and replayed.</span></div>"
+        f'<div class="lt-brand"><i data-logo="ink"></i><span>{decor.TAGLINE}</span></div>'
     )
     analytics, races = st.columns(2)
     with analytics.container(key="lt-analytics"):
@@ -87,7 +46,6 @@ with st.container(key="landing"):
         f'target="_blank" rel="noopener">Source on GitHub</a></span><span>{components.DISCLAIMER}</span></div>'
     )
 
-payload = landing_payload()
-if payload:
-    script = components.render_template("landing.js", payload)
-    st.html(f"<script>{script}</script>", unsafe_allow_javascript=True)
+payload = decor.demo_scene()
+script = components.render_template("landing.js", payload) if payload else ""
+st.html(f"<script>{decor.logo_script()}{script}</script>", unsafe_allow_javascript=True)

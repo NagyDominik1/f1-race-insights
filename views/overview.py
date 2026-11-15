@@ -65,7 +65,7 @@ def race_overview() -> None:
             st.caption("OpenF1 has no position data for this session.")
         else:
             components.plot(charts.bump_chart(by_lap, styles.reindex(table["acronym"]), selection.drivers), "bump")
-    with story, components.tile("story", "sand"):
+    with story, components.tile("story", "carbon"):
         components.tile_heading("The race in a few sentences")
         sentences = analysis.race_story(table, stats_table, fits, pit_stops, laps)
         st.markdown("\n\n".join(sentences))

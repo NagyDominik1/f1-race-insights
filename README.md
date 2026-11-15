@@ -19,6 +19,11 @@ Grand Prix, session, drivers) is stored in the URL, so every view can be shared 
 
 ## Feature tour
 
+**Intro.** The app opens on five start lights, lights out, and an original logo that draws
+itself. It plays once per browser session and can be skipped with any key.
+
+![Intro splash with the Race Insights logo](docs/screenshots/intro.png)
+
 ### Analytics
 
 **Overview.** The session in five numbers, a lap-by-lap position chart that can be played
@@ -223,7 +228,8 @@ python scripts/take_screenshots.py
 
 This is an unofficial project. Data comes from [OpenF1](https://openf1.org). It is not
 affiliated with, endorsed by or associated with Formula 1, the FIA or any team. No official
-logos, fonts or liveries are used; team colours appear only as data colours.
+logos, fonts or liveries are used; the Race Insights logo and all illustrations are original
+and drawn in code, and team colours appear only as data colours.
 
 ## Author
 

@@ -11,7 +11,7 @@ import streamlit as st
 
 from f1insights import theme
 from f1insights.openf1 import OpenF1Error
-from ui import state
+from ui import decor, state
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 REPO_URL = "https://github.com/NagyDominik1/f1-race-insights"
@@ -95,24 +95,49 @@ def loading(label: str) -> Iterator[None]:
         )
 
 
-def page_header() -> state.Selection:
-    """Shared header of the inner pages: weekend, session, selector, back to start."""
-    inject_css()
+def _hero(section: str):
+    """Open the hero band of a section: page CSS, the dark tile and its decorative canvas."""
+    inject_css(extra=theme.section_css(section))
+    hero = st.container(key=f"hero-{section}")
+    scene = "dataroom" if section == "analytics" else "trackside"
+    hero.html(f'<div class="hero-art"><canvas id="hero-art" data-scene="{scene}" aria-hidden="true"></canvas></div>')
+    return hero
+
+
+def _hero_animation() -> None:
+    """Start the hero canvas animation (decoration only, drawn from the demo race)."""
+    scene = decor.demo_scene()
+    if scene:
+        st.html(f"<script>{render_template('decor.js', scene)}</script>", unsafe_allow_javascript=True)
+
+
+def hero_title(section: str, title: str, meta: str) -> None:
+    """A hero band with a plain title, for pages without a race selection."""
+    with _hero(section):
+        st.html(f'<span class="accent-bar"></span><p class="gp-title">{title}</p><p class="gp-meta">{meta}</p>')
+    _hero_animation()
+
+
+def page_header(section: str = "analytics") -> state.Selection:
+    """Shared header of the inner pages: weekend, session, selector, back to start, in the hero band."""
+    hero = _hero(section)
     selection = state.resolve()
     meeting = selection.meeting
     session_date = selection.sessions.loc[selection.session_name, "date_start"]
     badge = '<span class="badge">Offline demo data</span>' if selection.is_demo else ""
-    left, right = st.columns([5, 2], vertical_alignment="bottom")
-    left.html(
-        f'<p class="gp-title">{meeting["meeting_name"]}</p>'
-        f'<p class="gp-meta"><strong>{selection.session_name}</strong>, '
-        f'{session_date.day} {session_date:%B %Y}, '
-        f'{meeting["circuit_short_name"]}, {meeting["country_name"]}{badge}</p>'
-    )
-    with right.container(horizontal=True, horizontal_alignment="right"):
-        st.page_link("views/landing.py", label="Start", icon=":material/arrow_back:")
-        with st.popover("Change race", icon=":material/tune:"):
-            state.selector(selection)
+    with hero:
+        left, right = st.columns([5, 2], vertical_alignment="bottom")
+        left.html(
+            f'<span class="accent-bar"></span><p class="gp-title">{meeting["meeting_name"]}</p>'
+            f'<p class="gp-meta"><strong>{selection.session_name}</strong>, '
+            f'{session_date.day} {session_date:%B %Y}, '
+            f'{meeting["circuit_short_name"]}, {meeting["country_name"]}{badge}</p>'
+        )
+        with right.container(horizontal=True, horizontal_alignment="right"):
+            st.page_link("views/landing.py", label="Start", icon=":material/arrow_back:")
+            with st.popover("Change race", icon=":material/tune:"):
+                state.selector(selection)
+    _hero_animation()
     return selection
 
 

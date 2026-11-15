@@ -7,7 +7,7 @@ import streamlit as st
 from f1insights import analysis, data, telemetry, theme
 from ui import components, loaders
 
-selection = components.page_header()
+selection = components.page_header("races")
 race_names = [name for name in components.RACE_SESSIONS if name in selection.sessions.index]
 if not race_names:
     components.empty_state("OpenF1 has no race session for this weekend yet, so there is nothing to replay.")

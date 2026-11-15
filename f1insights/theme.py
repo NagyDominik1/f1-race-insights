@@ -192,7 +192,8 @@ html, body, .stApp, [data-testid="stAppViewContainer"] {{ background: {dark["pag
 /* controls on dark */
 {main} :is(.stButton > button[kind="secondary"], [data-testid="stPopover"] button, [data-testid="stButtonGroup"] button) {{
   background: rgba(255,255,255,.07); border-color: {LINE_STRONG}; }}
-{main} [data-testid="stButtonGroup"] button{active} {{ background: {RED}; border-color: {RED}; }}
+[data-testid="stButtonGroup"] button{active} {{ background: {RED} !important; border-color: {RED} !important; }}
+[data-testid="stButtonGroup"] button{active} :is(p, span, div) {{ color: #fff; }}
 {main} [data-testid="stPageLink"] a:hover {{ background: rgba(255,255,255,.1); }}
 {main} [data-testid="stCheckbox"] label:has(input:not(:checked)) > div:nth-child(2) {{ background: rgba(255,255,255,.22); }}
 

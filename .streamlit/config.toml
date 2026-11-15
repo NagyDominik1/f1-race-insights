@@ -1,9 +1,11 @@
+# Dark base theme: menus, popovers and widgets are dark on the Analytics and Races pages.
+# The landing page stays light through its own CSS (f1insights/theme.py, ui/templates/landing.css).
 [theme]
-base = "light"
+base = "dark"
 primaryColor = "#E10600"
-backgroundColor = "#F5F5F7"
-secondaryBackgroundColor = "#E8E8ED"
-textColor = "#1D1D1F"
+backgroundColor = "#111214"
+secondaryBackgroundColor = "#1F2024"
+textColor = "#F5F5F7"
 font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
 baseRadius = "large"
 

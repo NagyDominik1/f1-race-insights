@@ -1,6 +1,7 @@
 // Original top-down single-seater silhouette, drawn with canvas paths.
 // x, y: centre in canvas pixels; heading in radians (0 = pointing right); size = car length in pixels.
-function drawCar(ctx, x, y, heading, size, colour, outline) {
+// stripe: draw a white stripe from nose to tail (the "ghost" car, matching the dashed legend style).
+function drawCar(ctx, x, y, heading, size, colour, outline, stripe) {
   const L = size, W = size * 0.46;
   ctx.save();
   ctx.translate(x, y);
@@ -32,6 +33,10 @@ function drawCar(ctx, x, y, heading, size, colour, outline) {
   ctx.lineTo(L * 0.12, W * 0.14);
   ctx.lineTo(L * 0.3, W * 0.09);
   ctx.closePath(); ctx.fill(); ctx.stroke();
+  if (stripe) {
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = W * 0.13; ctx.lineCap = 'butt';
+    ctx.beginPath(); ctx.moveTo(-L * 0.4, 0); ctx.lineTo(L * 0.46, 0); ctx.stroke();
+  }
   // cockpit
   ctx.fillStyle = 'rgba(29,29,31,.85)';
   ctx.beginPath(); ctx.ellipse(-L * 0.02, 0, L * 0.085, W * 0.1, 0, 0, Math.PI * 2); ctx.fill();

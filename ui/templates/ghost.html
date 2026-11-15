@@ -10,8 +10,11 @@ body { font-family: var(--font); color: var(--ink); background: transparent; }
 .stage { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; height: 636px; padding: 1px; }
 .map { position: relative; background: var(--tile); border-radius: 24px; overflow: hidden; }
 #view { position: absolute; inset: 0; width: 100%; height: 100%; }
-.legend { position: absolute; left: 20px; bottom: 16px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--secondary); }
+.legend { position: absolute; left: 20px; bottom: 16px; right: 20px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--secondary); pointer-events: none; }
 .legend i { display: inline-block; width: 26px; height: 7px; border-radius: 4px; margin-right: 6px; vertical-align: 1px; }
+.badges { position: absolute; right: 16px; top: 14px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--secondary); }
+#tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 12px; padding: 6px 9px; border-radius: 8px;
+  opacity: 0; transition: opacity .15s; white-space: nowrap; z-index: 5; }
 .side { display: flex; flex-direction: column; gap: 12px; }
 .card { background: var(--white); border-radius: 24px; box-shadow: 0 0 0 1px var(--hairline); padding: 18px 20px; }
 .card.sky { background: var(--sky); box-shadow: none; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
@@ -23,32 +26,37 @@ body { font-family: var(--font); color: var(--ink); background: transparent; }
 .driver span { font-variant-numeric: tabular-nums; font-size: 15px; }
 .driver small { display: block; font-size: 11.5px; color: var(--secondary); font-weight: 400; }
 #delta { font-size: 46px; font-weight: 700; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; line-height: 1.05; margin-top: 8px; color: var(--red); }
-#who { font-size: 14px; margin-top: 4px; min-height: 40px; }
+#metres { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
+#who { font-size: 14px; margin-top: 6px; min-height: 40px; }
 .controls { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
 button { font-family: inherit; }
 .play { border: 0; background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; cursor: pointer;
   transition: background .25s var(--ease), transform .25s var(--ease); }
 .play:hover { background: var(--red); transform: translateY(-1px); }
 .seg { display: inline-flex; background: rgba(255,255,255,.6); border-radius: 999px; padding: 3px; }
-.seg button { border: 0; background: none; padding: 6px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; cursor: pointer; color: inherit; }
+.map .seg { background: rgba(120,120,128,.14); }
+.seg button { border: 0; background: none; padding: 6px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 500; cursor: pointer; color: inherit; white-space: nowrap; }
 .seg button[aria-pressed="true"] { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.14); font-weight: 600; }
 .count { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
-@media (max-width: 720px) { .stage { grid-template-columns: 1fr; grid-template-rows: 300px auto; height: auto; } }
+@media (max-width: 720px) { .stage { grid-template-columns: 1fr; grid-template-rows: 320px auto; height: auto; } }
 </style>
 </head>
 <body>
 <div class="stage">
   <div class="map">
     <canvas id="view" aria-label="Track map coloured by the faster driver in each mini-sector, with both cars driving their lap"></canvas>
+    <div class="badges"><span>Sector badges</span><div class="seg" id="badgeMode" role="group" aria-label="Which sector badges to show"></div></div>
     <div class="legend" id="legend"></div>
+    <div id="tip"></div>
   </div>
   <div class="side">
     <div class="card" id="drivers"></div>
     <div class="card sky">
       <div>
         <div class="label">Gap at this point of the lap</div>
-        <div id="delta">0.000</div>
+        <div id="delta">0.000 s</div>
+        <div id="metres"></div>
         <div id="who"></div>
       </div>
       <div class="controls">
@@ -64,13 +72,14 @@ button { font-family: inherit; }
 const D = __DATA__;
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = id => document.getElementById(id);
-const [A, B] = D.cars, N = A.t.length, EVEN = '#8E8E93';
+const [A, B] = D.cars, N = A.t.length, EVEN = '#8E8E93', TOP = 5;
 const sameColour = A.c.toLowerCase() === B.c.toLowerCase();
+const signed = v => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(3);
 
 // cards (text carries the meaning; colour only repeats it)
 const lapTime = s => { const m = Math.floor(s / 60); return m + ':' + (s - m * 60).toFixed(3).padStart(6, '0'); };
 $('drivers').innerHTML = '<div class="label">Fastest laps</div>' + D.cars.map((car, i) =>
-  `<div class="driver"><span class="bar${i && sameColour ? ' dashed' : ''}" style="background:${car.c}"></span>` +
+  `<div class="driver"><span class="bar${i ? ' dashed' : ''}" style="background:${car.c}"></span>` +
   `<b>${car.a}<small>${car.note}</small></b><span>${lapTime(car.seconds)}</span></div>`).join('');
 const wins = [0, 1, -1].map(w => D.sectors.filter(s => s[2] === w).length);
 $('counts').innerHTML = '<div class="label">Mini-sectors won</div>' +
@@ -78,7 +87,8 @@ $('counts').innerHTML = '<div class="label">Mini-sectors won</div>' +
   `<div class="count"><span>Too close to call</span><b>${wins[2]}</b></div>`;
 $('legend').innerHTML = `<span><i style="background:${A.c}"></i>${A.a} faster</span>` +
   `<span><i style="background:${sameColour ? `repeating-linear-gradient(90deg, ${B.c} 0 5px, #fff 5px 8px)` : B.c}"></i>${B.a} faster</span>` +
-  `<span><i style="background:${EVEN}"></i>within ${D.even.toFixed(2)} s</span>`;
+  `<span><i style="background:${EVEN}"></i>within ${D.even.toFixed(2)} s</span>` +
+  `<span>${B.a} is the ghost: see-through, white stripe</span>`;
 
 const canvas = $('view'), ctx = canvas.getContext('2d');
 let W = 0, H = 0, scale = 1, ox = 0, oy = 0;
@@ -87,9 +97,10 @@ function resize() {
   W = box.width; H = box.height;
   canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  scale = Math.min((W - 80) / D.width, (H - 110) / D.height);
-  ox = (W - D.width * scale) / 2; oy = (H - 30 - D.height * scale) / 2;
-  draw();
+  scale = Math.min((W - 110) / D.width, (H - 150) / D.height);
+  ox = (W - D.width * scale) / 2; oy = (H - 20 - D.height * scale) / 2 + 8;
+  place();
+  draw(performance.now());
 }
 const X = v => ox + v * scale, Y = v => oy + v * scale;
 
@@ -101,14 +112,54 @@ function at(car, seconds) {
   const u = (seconds - car.t[lo]) / Math.max(1e-6, car.t[hi] - car.t[lo]);
   return {i: lo, f: (lo + u) / (N - 1), x: car.x[lo] + (car.x[hi] - car.x[lo]) * u, y: car.y[lo] + (car.y[hi] - car.y[lo]) * u, done: false};
 }
+// direction of the track at sample i (unit vector along the lap, in screen space)
+function along(car, i) {
+  const a = Math.max(0, i - 2), b = Math.min(N - 1, i + 3);
+  const dx = car.x[b] - car.x[a], dy = car.y[b] - car.y[a], len = Math.hypot(dx, dy) || 1;
+  return [dx / len, dy / len];
+}
 
+// ---- mini-sector badges: text and anchor are fixed, only their appearance is animated ----
+let cx = 0, cy = 0;
+const sectors = D.sectors.map(([f0, f1, winner, delta, rank]) => {
+  const mid = Math.round((f0 + f1) / 2 * (N - 1));
+  const who = winner === 0 ? A : winner === 1 ? B : null;
+  return {f1, winner, delta, rank, mid, shownAt: null, px: 0, py: 0,
+    colour: who ? who.c : EVEN, text: who ? `${who.a} ${signed(-Math.abs(delta))}` : `even ${Math.abs(delta).toFixed(3)}`};
+});
+function place() {  // badge anchors sit just outside the track, away from its centre
+  cx = 0; cy = 0;
+  for (let i = 0; i < N; i++) { cx += X(A.x[i]); cy += Y(A.y[i]); }
+  cx /= N; cy /= N;
+  const reach = Math.max(8, 170 * scale) / 2 + 13;
+  sectors.forEach(s => {
+    const [ux, uy] = along(A, s.mid), x = X(A.x[s.mid]), y = Y(A.y[s.mid]);
+    const side = (-uy) * (x - cx) + ux * (y - cy) >= 0 ? 1 : -1;
+    s.px = x - uy * side * reach; s.py = y + ux * side * reach;
+  });
+}
+let badgeMode = 'Top 5';
+const wanted = s => badgeMode === 'All' || s.rank <= TOP;
+
+function pill(text, x, y, fill, colour, alpha, bar) {  // rounded label centred on (x, y); returns its box
+  ctx.font = '700 11px Inter, sans-serif';
+  const w = ctx.measureText(text).width + (bar ? 17 : 12), h = 17, left = x - w / 2, top = y - h / 2;
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = fill; ctx.beginPath(); ctx.roundRect(left, top, w, h, 8.5); ctx.fill();
+  if (bar) { ctx.fillStyle = bar; ctx.beginPath(); ctx.roundRect(left + 4, top + 4, 4, h - 8, 2); ctx.fill(); }
+  ctx.fillStyle = colour; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.fillText(text, left + (bar ? 11 : 6), y + 0.5);
+  ctx.globalAlpha = 1;
+  return {left, top, w, h};
+}
 function strokeRange(i0, i1, colour, width, dash) {
   ctx.beginPath();
   for (let i = i0; i <= i1; i++) i === i0 ? ctx.moveTo(X(A.x[i]), Y(A.y[i])) : ctx.lineTo(X(A.x[i]), Y(A.y[i]));
   ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
 }
+
 let clock = 0, playing = !reduced, speed = 1, last = performance.now();
-function draw() {
+function draw(now) {
   ctx.clearRect(0, 0, W, H);
   ctx.lineJoin = 'round'; ctx.lineCap = 'butt';
   const width = Math.max(8, 170 * scale);
@@ -119,35 +170,73 @@ function draw() {
     if (winner === 1 && sameColour) strokeRange(i0, i1, 'rgba(255,255,255,.85)', width, [5, 6]);  // second driver: dashed
   });
   // start/finish line
-  const dx = X(A.x[2]) - X(A.x[0]), dy = Y(A.y[2]) - Y(A.y[0]), len = Math.hypot(dx, dy) || 1, half = width / 2 + 7;
+  const [sx, sy] = along(A, 0), half = width / 2 + 7;
   ctx.strokeStyle = '#1D1D1F'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(X(A.x[0]) + dy / len * half, Y(A.y[0]) - dx / len * half);
-  ctx.lineTo(X(A.x[0]) - dy / len * half, Y(A.y[0]) + dx / len * half); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(X(A.x[0]) + sy * half, Y(A.y[0]) - sx * half);
+  ctx.lineTo(X(A.x[0]) - sy * half, Y(A.y[0]) + sx * half); ctx.stroke();
 
-  const size = Math.max(22, 380 * scale);
   const states = D.cars.map(car => at(car, clock));
-  D.cars.forEach((car, k) => {
-    const s = states[k], j = Math.min(N - 1, s.i + 3), h = Math.max(0, s.i - 2);
-    drawCar(ctx, X(s.x), Y(s.y), Math.atan2(car.y[j] - car.y[h], car.x[j] - car.x[h]), size, car.c, k && sameColour ? '#FFFFFF' : null);
-    ctx.font = '700 11px Inter, sans-serif';
-    const w = ctx.measureText(car.a).width + 10, lx = X(s.x) + size * 0.5, ly = Y(s.y) + (k ? size * 0.45 : -size * 0.45 - 16);
-    ctx.fillStyle = 'rgba(255,255,255,.94)'; ctx.beginPath(); ctx.roundRect(lx, ly, w, 16, 8); ctx.fill();
-    ctx.fillStyle = '#1D1D1F'; ctx.textBaseline = 'middle'; ctx.fillText(car.a, lx + 5, ly + 8.5);
-  });
-  // gap where the trailing car is now (same place on track, not same moment)
   const f = Math.min(states[0].f, states[1].f), gap = D.delta[Math.round(f * (N - 1))];
-  const both = states[0].done && states[1].done, leader = gap <= 0 ? A : B, other = gap <= 0 ? B : A;
+  const both = states[0].done && states[1].done, lead = gap <= 0 ? 0 : 1;
+
+  // persistent markers and badges of the mini-sectors both cars have completed
+  sectors.forEach(s => {
+    if (f < s.f1 - 1e-9) { s.shownAt = null; return; }
+    if (s.shownAt === null) s.shownAt = now;
+    if (!wanted(s)) return;
+    const age = (now - s.shownAt) / 1000, fade = reduced ? 0 : Math.max(0, Math.min(1, (2.6 - age) / 0.6));
+    ctx.fillStyle = s.colour; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(s.px, s.py, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    if (fade > 0) {
+      const pop = Math.min(1, age / 0.22), grow = 0.6 + 0.4 * (1 - Math.pow(1 - pop, 3));
+      ctx.save(); ctx.translate(s.px, s.py); ctx.scale(grow, grow);
+      pill(s.text, 0, 0, '#1D1D1F', '#FFFFFF', fade, s.colour);
+      ctx.restore();
+    }
+  });
+
+  // the cars: side by side across the track (visual offset only), the second one as a see-through ghost
+  const size = Math.max(22, 380 * scale), offset = size * 0.3;
+  const spots = D.cars.map((car, k) => {
+    const s = states[k], [ux, uy] = along(car, s.i), side = k ? -1 : 1;
+    return {x: X(s.x) - uy * offset * side, y: Y(s.y) + ux * offset * side, ux, uy};
+  });
+  [1, 0].forEach(k => {
+    const spot = spots[k];
+    ctx.globalAlpha = k ? 0.62 : 1;
+    drawCar(ctx, spot.x, spot.y, Math.atan2(spot.uy, spot.ux), size, D.cars[k].c, null, k === 1);
+    ctx.globalAlpha = 1;
+  });
+  // labels: the leader's is pushed ahead along the track, the follower's behind; they never overlap
+  const reach = size * 0.75 + 30;
+  const boxes = [lead, 1 - lead].map((k, order) => {
+    const spot = spots[k], dir = order === 0 ? 1 : -1, own = k === lead ? -Math.abs(gap) : Math.abs(gap);
+    const text = `${D.cars[k].a} ${Math.abs(gap) < 0.0005 ? '0.000' : signed(own)}`;
+    return {k, text, x: spot.x + spot.ux * reach * dir, y: spot.y + spot.uy * reach * dir - size * 0.55};
+  });
+  ctx.font = '700 11px Inter, sans-serif';
+  boxes.forEach(b => { b.w = ctx.measureText(b.text).width + 17; b.x = Math.max(b.w / 2 + 4, Math.min(W - b.w / 2 - 4, b.x)); });
+  const [first, second] = boxes;
+  if (Math.abs(first.x - second.x) < (first.w + second.w) / 2 + 4 && Math.abs(first.y - second.y) < 20)
+    second.y = first.y + (second.y >= first.y ? 21 : -21);
+  boxes.forEach(b => pill(b.text, b.x, b.y, 'rgba(255,255,255,.95)', '#1D1D1F', 1, D.cars[b.k].c));
+
+  // side card: the gap as time and as distance (time × the speed of the car behind)
+  const leader = D.cars[lead], other = D.cars[1 - lead], behind = states[1 - lead];
+  const metres = Math.abs(gap) * other.v[behind.i] / 3.6;
   $('delta').textContent = Math.abs(gap).toFixed(3) + ' s';
+  $('metres').textContent = `≈ ${metres.toFixed(1)} m on track`;
   $('who').textContent = both ? `${leader.a} finishes the lap ${Math.abs(gap).toFixed(3)} s ahead of ${other.a}.`
     : Math.abs(gap) < 0.0005 ? 'Level.' : `${leader.a} ahead after ${Math.round(f * 100)}% of the lap.`;
 }
+
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (playing) {
     clock += dt * speed;
     if (clock > Math.max(A.seconds, B.seconds) + 0.3) { playing = false; $('play').textContent = 'Replay'; }
-    draw();
   }
+  draw(now);
   requestAnimationFrame(frame);
 }
 $('play').textContent = playing ? 'Pause' : 'Play both laps';
@@ -156,12 +245,30 @@ $('play').addEventListener('click', () => {
   playing = !playing; last = performance.now();
   $('play').textContent = playing ? 'Pause' : clock > 0 ? 'Resume' : 'Play both laps';
 });
-[1, 2, 4].forEach(v => {
-  const b = document.createElement('button');
-  b.textContent = v === 1 ? 'Real time' : '×' + v; b.setAttribute('aria-pressed', v === speed);
-  b.addEventListener('click', () => { speed = v; [...$('speeds').children].forEach(c => c.setAttribute('aria-pressed', c === b)); });
-  $('speeds').appendChild(b);
+function segment(id, options, current, label, onPick) {
+  options.forEach(option => {
+    const b = document.createElement('button');
+    b.textContent = label(option); b.setAttribute('aria-pressed', option === current);
+    b.addEventListener('click', () => { [...$(id).children].forEach(c => c.setAttribute('aria-pressed', c === b)); onPick(option); });
+    $(id).appendChild(b);
+  });
+}
+segment('speeds', [0.25, 0.5, 1, 2, 4], speed, v => '×' + v, v => { speed = v; });
+segment('badgeMode', ['Top 5', 'All'], badgeMode, v => v, v => { badgeMode = v; });
+
+// hover a sector marker to read its badge again
+const tip = $('tip');
+canvas.addEventListener('mousemove', event => {
+  const box = canvas.getBoundingClientRect(), mx = event.clientX - box.left, my = event.clientY - box.top;
+  const hit = sectors.find(s => s.shownAt !== null && wanted(s) && Math.hypot(s.px - mx, s.py - my) < 11);
+  if (!hit) { tip.style.opacity = 0; return; }
+  tip.textContent = hit.winner < 0 ? `Mini-sector too close to call (${Math.abs(hit.delta).toFixed(3)} s)`
+    : `${hit.text.split(' ')[0]} faster here by ${Math.abs(hit.delta).toFixed(3)} s`;
+  tip.style.opacity = 1;
+  tip.style.left = Math.min(mx + 12, W - tip.offsetWidth - 8) + 'px'; tip.style.top = Math.max(6, my - 34) + 'px';
 });
+canvas.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+
 new ResizeObserver(resize).observe(canvas);
 resize();
 requestAnimationFrame(frame);

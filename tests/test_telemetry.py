@@ -190,6 +190,21 @@ def test_mini_sector_winner_on_synthetic_laps():
     assert (same["faster"] == "even").all()
 
 
+def test_mini_sectors_rank_the_biggest_differences_first():
+    early = ghost(80.0, speed_profile=lambda s: np.where(s < 0.4, s * 1.25, 0.5 + (s - 0.4) / 0.6 * 0.5))
+    sectors = telemetry.mini_sectors(early, ghost(80.0), count=10)
+    assert sorted(sectors["rank"]) == list(range(1, 11))  # ties still get distinct ranks
+    by_rank = sectors.sort_values("rank")["delta"].abs().to_numpy()
+    assert (np.diff(by_rank) <= 1e-9).all()
+    top = sectors.loc[sectors["rank"] <= 5, "sector"]
+    assert set(top) == set(sectors["delta"].abs().nlargest(5).index + 1)
+
+
+def test_gap_metres_uses_the_speed_of_the_car_behind():
+    metres = telemetry.gap_metres(np.array([-0.05, 0.05, 0.0, 1.0]), np.array([252, 252, 300, 36]))
+    assert metres.round(2).tolist() == [3.5, 3.5, 0.0, 10.0]
+
+
 def test_ghost_payload_shape():
     fast, slow = ghost(80.0), ghost(81.0)
     sectors = telemetry.mini_sectors(fast, slow)
@@ -198,4 +213,6 @@ def test_ghost_payload_shape():
     assert [car["seconds"] for car in payload["cars"]] == [80.0, 81.0]
     assert len(payload["cars"][0]["x"]) == len(payload["delta"]) == telemetry.GHOST_POINTS
     assert len(payload["sectors"]) == telemetry.MINI_SECTORS and {s[2] for s in payload["sectors"]} == {0}
+    assert sorted(s[4] for s in payload["sectors"]) == list(range(1, telemetry.MINI_SECTORS + 1))
+    assert len(payload["cars"][1]["v"]) == telemetry.GHOST_POINTS and payload["cars"][1]["v"][100] == 140
     assert payload["delta"][-1] == -1.0 and payload["width"] == telemetry.BOX

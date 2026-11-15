@@ -57,7 +57,7 @@ st.caption(
     f"The track is cut into {telemetry.MINI_SECTORS} mini-sectors of equal distance and coloured by the driver who was "
     f"faster there. Time inside the lap is rebuilt from distance and measured speed and is good to roughly five "
     f"hundredths, so gaps under {telemetry.EVEN_SECONDS} s count as too close to call. The gap at the finish equals "
-    "the official lap-time gap."
+    "the official lap-time gap. The cars are drawn side by side so both stay visible; that offset is visual only."
 )
 
 styles = theme.driver_styles(loaders.drivers(key), [first, second])

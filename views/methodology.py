@@ -116,6 +116,11 @@ The lap is cut into **25 mini-sectors of equal distance**. In each, the driver w
 faster, and the track is coloured accordingly. The running delta at any point is the difference in elapsed
 time at the same lap fraction.
 
+**What is drawn is not always what is measured.** The two cars are shown side by side across the track so
+that both stay visible when the laps are within a few hundredths. That sideways offset is visual only: both
+laps follow the same line in the data. The second driver is drawn as a see-through "ghost" with a white
+stripe. The gap in metres is the time gap multiplied by the current speed of the car behind.
+
 *Limit:* speed is sampled about four times per second and matched to a position that can be 10 to 15 metres
 off, which matters most in braking zones. Gaps inside the lap are therefore good to roughly five hundredths
 to a tenth of a second, and mini-sector gaps under 0.03 s are shown as too close to call. The final gap

@@ -258,7 +258,8 @@ def mini_sectors(first: pd.DataFrame, second: pd.DataFrame, count: int = MINI_SE
     """Time of both laps in `count` equal-distance segments and who was faster in each.
 
     Columns: sector, start, end (lap fractions), first, second (seconds), delta
-    (first − second) and faster ("first", "second" or "even" when |delta| < even).
+    (first − second), faster ("first", "second" or "even" when |delta| < even)
+    and rank (1 = the mini-sector with the biggest time difference).
     """
     edges = np.linspace(0, 1, count + 1)
     times = {
@@ -267,16 +268,24 @@ def mini_sectors(first: pd.DataFrame, second: pd.DataFrame, count: int = MINI_SE
     }
     delta = times["first"] - times["second"]
     faster = np.select([np.abs(delta) < even, delta < 0], ["even", "first"], default="second")
-    return pd.DataFrame({
+    sectors = pd.DataFrame({
         "sector": np.arange(1, count + 1), "start": edges[:-1], "end": edges[1:],
         "first": times["first"], "second": times["second"], "delta": delta, "faster": faster,
     })
+    return sectors.assign(rank=sectors["delta"].abs().rank(method="first", ascending=False).astype(int))
+
+
+def gap_metres(delta_seconds: np.ndarray, speed_kmh: np.ndarray) -> np.ndarray:
+    """A time gap as a distance on track: |gap| × the speed of the car behind, in metres."""
+    return np.abs(delta_seconds) * np.asarray(speed_kmh, dtype="float64") / 3.6
 
 
 def ghost_payload(first: pd.DataFrame, second: pd.DataFrame, sectors: pd.DataFrame, cars: list[dict]) -> dict:
     """Compact data for the ghost-lap animation: both laps in one box, mini-sector winners, running delta.
 
-    cars holds one dict per driver with at least "a" (acronym) and "c" (colour); the path is added here.
+    cars holds one dict per driver with at least "a" (acronym) and "c" (colour); the path (t, x, y)
+    and the speed "v" in km/h are added here. Each sector row is [start, end, winner, delta, rank]
+    with winner 0 (first), 1 (second) or -1 (even).
     """
     fit = fit_to_box(first["x"], first["y"])
     payload_cars = []
@@ -285,11 +294,12 @@ def ghost_payload(first: pd.DataFrame, second: pd.DataFrame, sectors: pd.DataFra
         payload_cars.append(car | {
             "seconds": round(float(lap["t"].iloc[-1]), 3), "t": lap["t"].round(3).tolist(),
             "x": np.round(x).astype(int).tolist(), "y": np.round(y).astype(int).tolist(),
+            "v": np.round(lap["speed"]).astype(int).tolist(),
         })
     winner = sectors["faster"].map({"first": 0, "second": 1, "even": -1})
     return {
         "width": fit["width"], "height": fit["height"], "cars": payload_cars,
         "sectors": np.column_stack([sectors["start"].round(4), sectors["end"].round(4), winner,
-                                    sectors["delta"].round(3)]).tolist(),
+                                    sectors["delta"].round(3), sectors["rank"]]).tolist(),
         "delta": np.round(lap_delta(first, second), 3).tolist(),
     }
